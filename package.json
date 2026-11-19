@@ -1,0 +1,15 @@
+{
+  "name": "eim360-ai-testing-poc",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EIM 360 Incident Management mock + AI test agent POC (Playwright)",
+  "scripts": {
+    "start": "node server/index.js",
+    "start:fixed": "node scripts/with-env.js BUILD=fixed node server/index.js",
+    "test": "playwright test -c tests/playwright.config.js",
+    "test:fixed": "node scripts/with-env.js BUILD=fixed npx playwright test -c tests/playwright.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
+}
