@@ -1,0 +1,2071 @@
+[
+ {
+  "caseId": "SMK-01",
+  "clientRef": "TC_01",
+  "title": "Verify Incident Edit Page Loads Successfully",
+  "area": "Page load",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open an existing incident.",
+   "Navigate to Incident Edit page."
+  ],
+  "expected": "Incident details, AI sections, category section, resolution section, and action buttons load successfully.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-02",
+  "clientRef": "TC_02",
+  "title": "Verify Mandatory Field Validation",
+  "area": "Validation",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Leave required fields blank.",
+   "Click Approve and Resolve."
+  ],
+  "expected": "Appropriate validation messages are displayed and user cannot proceed.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-03",
+  "clientRef": "TC_03",
+  "title": "Verify AI Prediction Details Load",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open incident having AI prediction.",
+   "Review AI Predicted Failure Details section."
+  ],
+  "expected": "AI prediction details are displayed without errors.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-04",
+  "clientRef": "TC_04",
+  "title": "Verify Issue Category Selection",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Select/Approve an Issue Category.",
+   "Save the incident."
+  ],
+  "expected": "Selected Issue Category is saved and retained after refresh.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-05",
+  "clientRef": "TC_05",
+  "title": "Verify SWAT KB Recommendations Load",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Select valid Interface and Issue Category.",
+   "Review recommended resolution steps."
+  ],
+  "expected": "Matching KB recommendations are displayed correctly based on Interface + Category.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-06",
+  "clientRef": "TC_06",
+  "title": "Verify Add Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Add a new resolution step.",
+   "Save the incident."
+  ],
+  "expected": "Resolution step is saved successfully and displayed after reload.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-07",
+  "clientRef": "TC_07",
+  "title": "Verify Edit Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Edit an existing resolution step.",
+   "Save the incident."
+  ],
+  "expected": "Updated resolution step is displayed successfully after save.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-08",
+  "clientRef": "TC_08",
+  "title": "Verify Special Character Handling",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter resolution step containing special characters (' \" &).",
+   "Save the incident."
+  ],
+  "expected": "Save succeeds and entered values display correctly.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-09",
+  "clientRef": "TC_09",
+  "title": "Verify Approve + Add KB Flow",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Select KB recommendation.",
+   "Click Approve + Add KB."
+  ],
+  "expected": "KB approval completes successfully and resolution is processed.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-10",
+  "clientRef": "TC_10",
+  "title": "Verify Save Work In Progress Incident",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter required details.",
+   "Click Save Work In Progress."
+  ],
+  "expected": "Incident data is saved successfully without closure.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-11",
+  "clientRef": "TC_11",
+  "title": "Verify Resolution Details Update",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter Resolution Details.",
+   "Save the incident."
+  ],
+  "expected": "Resolution Details are saved successfully and persist after reload.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-12",
+  "clientRef": "TC_12",
+  "title": "Verify Approve And Resolve Incident",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Complete mandatory fields.",
+   "Click Approve and Resolve."
+  ],
+  "expected": "Incident status changes to Resolved/Closed successfully.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-13",
+  "clientRef": "TC_13",
+  "title": "Verify Saved Data Persistence",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reopen previously updated incident.",
+   "Verify saved fields."
+  ],
+  "expected": "Category, KB selections, resolution steps, and comments are retained.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-14",
+  "clientRef": "TC_14",
+  "title": "Verify Duplicate Prevention During Re-Save",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Save updated resolution steps.",
+   "Save again without changes."
+  ],
+  "expected": "Duplicate resolution steps are not created.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "SMK-15",
+  "clientRef": "TC_15",
+  "title": "Verify SCD2 Versioning After Resolution Step Update",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Edit existing resolution step.",
+   "Verify backend records."
+  ],
+  "expected": "Old record is expired, new version is created, and only one active record exists. SWAT KB uses SCD2 versioning for edited steps.",
+  "suite": "Smoke",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 SMOKE TESTING"
+ },
+ {
+  "caseId": "REG-001",
+  "clientRef": "TC_001",
+  "title": "Verify Incident Edit Page Loads Successfully",
+  "area": "Page load",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Navigate to Incident Edit Page.",
+   "Open an incident record."
+  ],
+  "expected": "Incident Edit Page loads successfully and all sections are displayed without errors.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-002",
+  "clientRef": "TC_002",
+  "title": "Verify Mandatory Field Validation",
+  "area": "Validation",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Leave mandatory fields blank.",
+   "Attempt to save the incident."
+  ],
+  "expected": "Appropriate validation messages are displayed and save is prevented.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-003",
+  "clientRef": "TC_003",
+  "title": "Verify AI Prediction Details Display",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open an incident with AI predictions available.",
+   "Review prediction details."
+  ],
+  "expected": "AI prediction details are displayed correctly.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-004",
+  "clientRef": "TC_004",
+  "title": "Verify Approval of AI Predictions",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Review AI predictions.",
+   "Approve the predictions.",
+   "Save the incident."
+  ],
+  "expected": "Approved predictions are saved successfully and reflected in the incident.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-005",
+  "clientRef": "TC_005",
+  "title": "Verify Rejection and Correction of AI Predictions",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject AI prediction.",
+   "Provide corrected values.",
+   "Save."
+  ],
+  "expected": "Corrected values are saved successfully.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-006",
+  "clientRef": "TC_006",
+  "title": "Verify KB Recommendations Load",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open an incident eligible for KB recommendations.",
+   "Review recommended KBs."
+  ],
+  "expected": "Relevant KB recommendations are displayed successfully.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-007",
+  "clientRef": "TC_007",
+  "title": "Verify Add Manual Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Add a new manual resolution step.",
+   "Save the incident."
+  ],
+  "expected": "Resolution step is saved successfully and displayed correctly.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-008",
+  "clientRef": "TC_008",
+  "title": "Verify Edit Existing Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Modify an existing resolution step.",
+   "Save the changes."
+  ],
+  "expected": "Updated resolution step is saved and displayed correctly.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-009",
+  "clientRef": "TC_009",
+  "title": "Verify Delete Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Delete an existing resolution step.",
+   "Save changes."
+  ],
+  "expected": "Resolution step is removed successfully.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-010",
+  "clientRef": "TC_010",
+  "title": "Verify Save Work In Progress Incident",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Update incident details.",
+   "Save as work in progress."
+  ],
+  "expected": "Changes are saved without closing the incident.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-011",
+  "clientRef": "TC_011",
+  "title": "Verify Approve One Time Flow",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Complete required review actions.",
+   "Select Approve One Time.",
+   "Save."
+  ],
+  "expected": "Incident is approved successfully through One Time flow.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-012",
+  "clientRef": "TC_012",
+  "title": "Verify Approve and Add KB Flow",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Complete review actions.",
+   "Select Approve and Add KB.",
+   "Save."
+  ],
+  "expected": "Incident is approved and KB is created/updated successfully.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-013",
+  "clientRef": "TC_013",
+  "title": "Verify Incident Closure",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Complete all required fields.",
+   "Close the incident."
+  ],
+  "expected": "Incident is closed successfully.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-014",
+  "clientRef": "TC_014",
+  "title": "Verify Incident Data Persistence After Save",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Update incident details.",
+   "Save and reopen the incident."
+  ],
+  "expected": "Previously saved data remains unchanged.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-015",
+  "clientRef": "TC_015",
+  "title": "Verify Read-Only Behavior After Review Completion",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Complete review process.",
+   "Reopen the reviewed incident."
+  ],
+  "expected": "Fields become read-only as per business rules.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-016",
+  "clientRef": "TC_016",
+  "title": "Verify AI Review Decisions Sync to Incident Records",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve or reject AI predictions.",
+   "Save and refresh."
+  ],
+  "expected": "Review decisions are correctly reflected in incident records.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-017",
+  "clientRef": "TC_017",
+  "title": "Verify Resolution Step Save to Backend Table",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Add or update resolution step.",
+   "Save.",
+   "Verify backend record."
+  ],
+  "expected": "Resolution step is stored correctly in the backend table.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-018",
+  "clientRef": "TC_018",
+  "title": "Verify KB Usage Counter Update",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Select and use a KB recommendation.",
+   "Save the incident."
+  ],
+  "expected": "KB usage count is incremented appropriately.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-019",
+  "clientRef": "TC_019",
+  "title": "Verify Single Active Version (SCD2) After Resolution Step Update",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Update existing resolution step.",
+   "Save changes.",
+   "Verify backend records."
+  ],
+  "expected": "Previous record is expired and only one active record exists with active end date.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-020",
+  "clientRef": "TC_020",
+  "title": "Verify Duplicate Prevention During Re-Save",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Save a resolution step.",
+   "Repeat save or retry submission.",
+   "Verify records."
+  ],
+  "expected": "No duplicate active records are created.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-021",
+  "clientRef": "TC_021",
+  "title": "Verify Special Character Handling in Resolution Steps",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Create a resolution step containing apostrophes, quotes, ampersands, brackets and multiline text.",
+   "Save."
+  ],
+  "expected": "Data is saved successfully and displayed exactly as entered.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-022",
+  "clientRef": "TC_022",
+  "title": "Verify Update of Existing Step Containing Special Characters",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Edit existing resolution step with special characters.",
+   "Save changes."
+  ],
+  "expected": "Updated content is saved correctly without errors or duplication.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-023",
+  "clientRef": "TC_023",
+  "title": "Verify Backend Errors Are Not Exposed During Save",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Perform save operation that triggers backend processing validation.",
+   "Observe response."
+  ],
+  "expected": "SQL, BigQuery, stack trace, query details or technical messages are not displayed to users.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-024",
+  "clientRef": "TC_024",
+  "title": "Verify No AI Prediction Scenario",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open incident with no AI prediction available."
+  ],
+  "expected": "Application handles the scenario gracefully without errors.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-025",
+  "clientRef": "TC_025",
+  "title": "Verify No KB Match Scenario",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open incident where no KB recommendation exists."
+  ],
+  "expected": "Appropriate message is displayed and application functions normally.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-026",
+  "clientRef": "TC_026",
+  "title": "Verify Validation When Rejected AI Prediction Has No Correction",
+  "area": "Validation",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject AI prediction.",
+   "Do not provide corrected value.",
+   "Save."
+  ],
+  "expected": "Validation prevents save and appropriate message is displayed.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-027",
+  "clientRef": "TC_027",
+  "title": "Verify AI Decision Persistence After Refresh",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Approve or reject AI predictions.",
+   "Save and refresh."
+  ],
+  "expected": "Previously selected decisions remain intact.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-028",
+  "clientRef": "TC_028",
+  "title": "Verify Existing KB Step Update Creates New Active Version",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Update a resolution step sourced from KB.",
+   "Save.",
+   "Verify backend records."
+  ],
+  "expected": "New active version is created and previous version is expired as per SCD2 logic.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-029",
+  "clientRef": "TC_029",
+  "title": "Verify Data Integrity Between SWAT_KB and Incident Edit Page",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Add or update a resolution step using Source KB.",
+   "Save.",
+   "Verify UI and backend data.",
+   "Reopen incident."
+  ],
+  "expected": "Resolution step data remains consistent between SWAT_KB and Incident Edit Page without duplication.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "REG-030",
+  "clientRef": "TC_030",
+  "title": "Verify SME Assignment Synchronization from Interface Edit to SWAT KB",
+  "area": "Knowledge Base",
+  "role": "SME",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Assign SMEs in Interface Edit Page.",
+   "Save changes.",
+   "Open corresponding SWAT KB entry."
+  ],
+  "expected": "Onshore and Offshore SME values are synchronized and displayed correctly in SWAT KB.",
+  "suite": "Regression",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 Sheet1"
+ },
+ {
+  "caseId": "MST-01",
+  "clientRef": "TC_01",
+  "title": "Verify Incident Edit Page Loads Successfully",
+  "area": "Page load",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open valid incident.",
+   "Navigate to Incident Edit page."
+  ],
+  "expected": "Incident details, AI Review sections and editable fields load successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-02",
+  "clientRef": "TC_02",
+  "title": "Verify Mandatory Field Validation",
+  "area": "Validation",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Leave required fields blank.",
+   "Attempt to resolve incident."
+  ],
+  "expected": "Validation messages are displayed and save is blocked.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-03",
+  "clientRef": "TC_03",
+  "title": "Verify AI Predicted Failure Details Display",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open incident with AI prediction.",
+   "Review prediction section."
+  ],
+  "expected": "AI failure details are displayed correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-04",
+  "clientRef": "TC_04",
+  "title": "Verify Approval Of Predicted Issue Category",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve predicted category.",
+   "Save incident."
+  ],
+  "expected": "Approval status is saved successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-05",
+  "clientRef": "TC_05",
+  "title": "Verify Reject And Correct Issue Category",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject category prediction.",
+   "Select corrected category and save."
+  ],
+  "expected": "Corrected category is persisted successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-06",
+  "clientRef": "TC_06",
+  "title": "Verify KB Resolution Recommendations Load",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Select Interface and Category having KB mapping.",
+   "Review recommended steps."
+  ],
+  "expected": "KB recommendations are displayed correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-07",
+  "clientRef": "TC_07",
+  "title": "Verify Add Manual Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Add new resolution step.",
+   "Save incident."
+  ],
+  "expected": "Step is saved successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-08",
+  "clientRef": "TC_08",
+  "title": "Verify Edit Existing Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Update existing step.",
+   "Save incident."
+  ],
+  "expected": "Updated step is displayed correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-09",
+  "clientRef": "TC_09",
+  "title": "Verify Delete Resolution Step",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Delete existing step.",
+   "Save incident."
+  ],
+  "expected": "Step is removed successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-10",
+  "clientRef": "TC_10",
+  "title": "Verify Save Work In Progress Incident",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Update incident details.",
+   "Save as WIP."
+  ],
+  "expected": "Incident saves successfully without closure.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-11",
+  "clientRef": "TC_11",
+  "title": "Verify Approve And Add KB Flow",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Select Approve + Add KB.",
+   "Save review."
+  ],
+  "expected": "Resolution and KB update complete successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-12",
+  "clientRef": "TC_12",
+  "title": "Verify Approve One Time Flow",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Select Approve One Time.",
+   "Save review."
+  ],
+  "expected": "One-time resolution is stored successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-13",
+  "clientRef": "TC_13",
+  "title": "Verify Incident Closure",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Complete mandatory fields.",
+   "Click Approve and Resolve."
+  ],
+  "expected": "Incident transitions successfully to resolved status.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-14",
+  "clientRef": "TC_14",
+  "title": "Verify Incident Data Persistence",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Save updates.",
+   "Reopen incident."
+  ],
+  "expected": "All values remain persisted after reload.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-15",
+  "clientRef": "TC_15",
+  "title": "Verify Read-Only State After Review Completed",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open Review Completed incident.",
+   "Verify AI sections."
+  ],
+  "expected": "AI review controls become read-only.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-16",
+  "clientRef": "TC_16",
+  "title": "Verify Resolution Step Saved To Execution Table",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Add resolution steps.",
+   "Save incident."
+  ],
+  "expected": "Resolution execution records are saved successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-17",
+  "clientRef": "TC_17",
+  "title": "Verify Duplicate Step Prevention During Re-Save",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Save resolution step.",
+   "Save again without changes."
+  ],
+  "expected": "Duplicate records are not created.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-18",
+  "clientRef": "TC_18",
+  "title": "Verify KB Usage Counter Update",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Use KB recommendation.",
+   "Approve and save."
+  ],
+  "expected": "KB usage information is updated successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-19",
+  "clientRef": "TC_19",
+  "title": "Verify AI Values Sync To Incident Task Event",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve AI values.",
+   "Save incident."
+  ],
+  "expected": "Selected values sync successfully to incident records.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-20",
+  "clientRef": "TC_20",
+  "title": "Verify Single Active Resolution Version Exists",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Update resolution step multiple times.",
+   "Verify backend data."
+  ],
+  "expected": "Only one active version exists after updates.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-21",
+  "clientRef": "TC_21",
+  "title": "Verify Resolution Step With Apostrophe Character",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter step containing apostrophe (').",
+   "Save incident."
+  ],
+  "expected": "Save succeeds and value displays correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-22",
+  "clientRef": "TC_22",
+  "title": "Verify Resolution Step With Double Quote Character",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter step containing double quote (\").",
+   "Save incident."
+  ],
+  "expected": "Save succeeds and value displays correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-23",
+  "clientRef": "TC_23",
+  "title": "Verify Resolution Step With Ampersand Character",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter step containing ampersand (&).",
+   "Save incident."
+  ],
+  "expected": "Save succeeds and value displays correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-24",
+  "clientRef": "TC_24",
+  "title": "Verify Resolution Step With Backslash Character",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter step containing backslash ().",
+   "Save incident."
+  ],
+  "expected": "Save succeeds and value displays correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-25",
+  "clientRef": "TC_25",
+  "title": "Verify Resolution Step With Multiple Special Characters",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Enter combination of special characters.",
+   "Save incident."
+  ],
+  "expected": "Data is stored and displayed correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-26",
+  "clientRef": "TC_26",
+  "title": "Verify Update Of Existing Step Containing Special Characters",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Edit step containing special characters.",
+   "Save incident."
+  ],
+  "expected": "Updated value is processed successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-27",
+  "clientRef": "TC_27",
+  "title": "Verify Repeated Save Of Special Character Data",
+  "area": "Resolution steps",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Save step containing special characters.",
+   "Save again."
+  ],
+  "expected": "No duplicates or save failures occur.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-28",
+  "clientRef": "TC_28",
+  "title": "Verify Rejection Of AI Failure Prediction",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Reject AI failure details.",
+   "Provide correction and save."
+  ],
+  "expected": "Corrected failure details are stored successfully.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-29",
+  "clientRef": "TC_29",
+  "title": "Verify No AI Prediction Scenario",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open incident without AI output.",
+   "Review page behavior."
+  ],
+  "expected": "Incident remains editable and review workflow functions correctly.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "MST-30",
+  "clientRef": "TC_30",
+  "title": "Verify No KB Match Scenario",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Select Interface and Category without KB recipe.",
+   "Review resolution section."
+  ],
+  "expected": "User can manually add resolution steps.",
+  "suite": "Must Do",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 MUST DO TEST CASES"
+ },
+ {
+  "caseId": "CMB-01",
+  "clientRef": "TC-01",
+  "title": "Verify Approval Of All AI Predictions",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve Failure Details.",
+   "Approve Issue Category.",
+   "Approve Resolution Steps and save."
+  ],
+  "expected": "All review statuses are marked Approved and incident proceeds successfully.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-02",
+  "clientRef": "TC_02",
+  "title": "Verify Approval Of Failure Details And Category With Resolution Step Correction",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve Failure Details.",
+   "Approve Issue Category.",
+   "Reject Resolution Steps and provide corrected steps."
+  ],
+  "expected": "Failure Details and Category remain Approved. Corrected Resolution Steps are saved successfully.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-03",
+  "clientRef": "TC_03",
+  "title": "Verify Approval Of Failure Details And Resolution Steps With Category Correction",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve Failure Details.",
+   "Reject Issue Category and select corrected category.",
+   "Approve Resolution Steps."
+  ],
+  "expected": "Corrected Category is saved successfully while other sections remain Approved.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-04",
+  "clientRef": "TC_04",
+  "title": "Verify Approval Of Category And Resolution Steps With Failure Detail Correction",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject Failure Details and enter corrected value.",
+   "Approve Issue Category.",
+   "Approve Resolution Steps."
+  ],
+  "expected": "Corrected Failure Details are stored successfully while other reviews remain Approved.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-05",
+  "clientRef": "TC_05",
+  "title": "Verify Correction Of Failure Details And Category With Resolution Approval",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject Failure Details and provide correction.",
+   "Reject Issue Category and select corrected category.",
+   "Approve Resolution Steps."
+  ],
+  "expected": "Corrected Failure Details and Category are saved successfully. Resolution remains Approved.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-06",
+  "clientRef": "TC_06",
+  "title": "Verify Correction Of Failure Details And Resolution Steps With Category Approval",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject Failure Details and provide correction.",
+   "Approve Category.",
+   "Reject Resolution Steps and provide corrected steps."
+  ],
+  "expected": "Corrected Failure Details and Resolution Steps are saved successfully.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-07",
+  "clientRef": "TC_07",
+  "title": "Verify Correction Of Category And Resolution Steps With Failure Approval",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve Failure Details.",
+   "Reject Category and select corrected category.",
+   "Reject Resolution Steps and provide corrected steps."
+  ],
+  "expected": "Corrected Category and Resolution Steps are saved successfully.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-08",
+  "clientRef": "TC_08",
+  "title": "Verify Correction Of All AI Predictions",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject Failure Details and provide correction.",
+   "Reject Category and select corrected category.",
+   "Reject Resolution Steps and provide corrected steps."
+  ],
+  "expected": "All corrected values are saved successfully and review statuses updated appropriately.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-09",
+  "clientRef": "TC_09",
+  "title": "Verify Reject Failure Details Without Correction",
+  "area": "Validation",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject Failure Details.",
+   "Leave correction field blank and save."
+  ],
+  "expected": "Validation message is displayed and save is blocked. Correction is mandatory.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-10",
+  "clientRef": "TC_10",
+  "title": "Verify Reject Category Without Selecting Corrected Category",
+  "area": "Validation",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject Category.",
+   "Do not select replacement category.",
+   "Save review."
+  ],
+  "expected": "Validation message is displayed and review cannot be saved.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-11",
+  "clientRef": "TC_11",
+  "title": "Verify Reject Resolution Steps Without Providing Corrected Steps",
+  "area": "Validation",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Reject Resolution Steps.",
+   "Remove or leave corrected steps blank.",
+   "Save review."
+  ],
+  "expected": "Validation message is displayed and save is blocked.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-12",
+  "clientRef": "TC_12",
+  "title": "Verify No AI Failure Prediction Scenario",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open incident without Failure Prediction.",
+   "Review AI sections and save."
+  ],
+  "expected": "Incident remains editable and review workflow functions correctly.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-13",
+  "clientRef": "TC_13",
+  "title": "Verify Review Completed Read-Only Behavior",
+  "area": "Incident workflow",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Complete AI review for all sections.",
+   "Reopen incident."
+  ],
+  "expected": "AI panels become read-only after review completion.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-14",
+  "clientRef": "TC_14",
+  "title": "Verify AI Decision Persistence After Refresh",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Complete review combination.",
+   "Refresh page."
+  ],
+  "expected": "Review decisions and corrections remain persisted.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-15",
+  "clientRef": "TC_15",
+  "title": "Verify AI Review Updates Incident Data",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Correct category and resolution details.",
+   "Save review and validate incident fields."
+  ],
+  "expected": "Approved/corrected values are synchronized successfully.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-16",
+  "clientRef": "TC_16",
+  "title": "AI Predictions Approved + Approve One Time",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open an incident with AI-predicted Failure Details and Issue Category.",
+   "Accept all predictions and click Approve One Time."
+  ],
+  "expected": "Incident is saved successfully, approved predictions are retained, status is updated, and no KB repository update occurs.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-17",
+  "clientRef": "TC_17",
+  "title": "AI Predictions Approved + Approve & Add to KB",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open an incident with AI predictions available.",
+   "Accept all predictions and click Approve & Add to KB."
+  ],
+  "expected": "Incident is saved successfully and a KB record is created or updated based on approval selection.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-18",
+  "clientRef": "TC_18",
+  "title": "AI Predictions Corrected + Approve One Time",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Modify one or more AI-predicted values.",
+   "Click Approve One Time."
+  ],
+  "expected": "Corrected prediction values are saved successfully and no KB repository update occurs.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-19",
+  "clientRef": "TC_19",
+  "title": "AI Predictions Corrected + Approve & Add to KB",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Modify one or more AI-predicted values.",
+   "Click Approve & Add to KB."
+  ],
+  "expected": "Corrected values are saved and KB repository is updated with the final approved values.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-20",
+  "clientRef": "TC_20",
+  "title": "No Prediction Available + Approve One Time",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open an incident where predictions are unavailable.",
+   "Enter values manually and click Approve One Time."
+  ],
+  "expected": "Manual values are saved successfully and incident status is updated.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-21",
+  "clientRef": "TC_21",
+  "title": "No Prediction Available + Approve & Add to KB",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open an incident where predictions are unavailable.",
+   "Enter values manually and click Approve & Add to KB."
+  ],
+  "expected": "Incident is updated successfully and a new KB entry is created.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-22",
+  "clientRef": "TC_22",
+  "title": "Partial Prediction Approval + Approve One Time",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve one prediction and modify another prediction.",
+   "Click Approve One Time."
+  ],
+  "expected": "Approved and corrected values are saved successfully without KB update.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-23",
+  "clientRef": "TC_23",
+  "title": "Partial Prediction Approval + Approve & Add to KB",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Approve one prediction and correct another prediction.",
+   "Click Approve & Add to KB."
+  ],
+  "expected": "Corrected values are saved and KB repository is updated with the final values.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-24",
+  "clientRef": "TC_24",
+  "title": "Existing KB Steps Accepted As-Is + Approve One Time",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Accept all recommended KB resolution steps without modification.",
+   "Click Approve One Time."
+  ],
+  "expected": "Incident is updated successfully and no new KB repository history record is created.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-25",
+  "clientRef": "TC_25",
+  "title": "Existing KB Steps Modified + Approve & Add to KB",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Modify one or more KB-based resolution steps.",
+   "Click Approve & Add to KB."
+  ],
+  "expected": "KB repository is updated using SCD2/history logic and a new active version is created.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-26",
+  "clientRef": "TC_26",
+  "title": "Existing KB Step Edited + Approve & Add to KB",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Edit an existing KB resolution step.",
+   "Click Approve & Add to KB."
+  ],
+  "expected": "Existing KB record is expired and a new active record is created with updated content.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "CMB-27",
+  "clientRef": "TC_27",
+  "title": "Corrected Prediction + New KB Creation",
+  "area": "AI review",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Correct AI predictions and add new resolution steps.",
+   "Click Approve & Add to KB."
+  ],
+  "expected": "Corrected prediction values and new KB content are saved successfully in respective tables.",
+  "suite": "Combinations",
+  "source": "Client TS_REGRESSION.xlsx \u00b7 COMBINATIONS"
+ },
+ {
+  "caseId": "QA-INC-001",
+  "title": "Incident list shows all active incidents",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Check the incident total and the All tab",
+   "Check the pager text"
+  ],
+  "expected": "Total shows 259 incidents; the All tab and the pager both show 259 entries",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-002",
+  "title": "Open tab count matches the incidents listed",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Select the Open tab",
+   "Compare the tab count with the pager total",
+   "Check the status of the listed incidents"
+  ],
+  "expected": "Tab count equals the number of entries and every row is Open",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-003",
+  "title": "In Progress tab count matches the incidents listed",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Select the In Progress tab",
+   "Compare the tab count with the pager total"
+  ],
+  "expected": "Tab count equals the number of entries",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-004",
+  "title": "Awaiting SME Response tab count matches the incidents listed",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Select the Awaiting SME Response tab",
+   "Compare the tab count with the pager total"
+  ],
+  "expected": "Tab count equals the number of entries",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-005",
+  "title": "Can be Closed tab count matches the incidents listed",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Select the Can be Closed tab",
+   "Compare the tab count with the pager total"
+  ],
+  "expected": "Tab count equals the number of entries",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-006",
+  "title": "Search filters incidents by interface code",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Type an interface code into Search",
+   "Check every listed row"
+  ],
+  "expected": "Only incidents for that interface code are listed",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-007",
+  "title": "Page size and paging work",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "Low",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Set Show to 25 entries",
+   "Click Next"
+  ],
+  "expected": "25 rows per page; second page shows entries 26 to 50",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-008",
+  "title": "Sort by Critical Flag puts P1 first",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "Low",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Click the Critical Flag header until ascending",
+   "Check the first rows"
+  ],
+  "expected": "P1 incidents appear first",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-009",
+  "title": "Columns menu hides and restores a column",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "Low",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Open Columns and untick SME (Onshore)",
+   "Tick it again"
+  ],
+  "expected": "Column disappears and comes back",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-INC-010",
+  "title": "CSV export matches the selected tab",
+  "area": "Incident List",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Select the Open tab",
+   "Click CSV and open the file"
+  ],
+  "expected": "File has the header row plus one row per Open incident",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-SYNC-001",
+  "title": "Update Incidents from ServiceNow imports new incidents",
+  "area": "ServiceNow Sync",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management",
+   "Note the total and Last updated time",
+   "Click Update Incidents from ServiceNow"
+  ],
+  "expected": "Confirmation shows 3 incidents imported; total increases by 3; Last updated changes",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-SYNC-002",
+  "title": "Manager cannot trigger a ServiceNow refresh",
+  "area": "ServiceNow Sync",
+  "role": "Manager",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Switch role to Manager",
+   "Open Incident Management",
+   "Try the refresh from the API as Manager"
+  ],
+  "expected": "No refresh button is shown and the API refuses the request (403)",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-RBAC-001",
+  "title": "Role diagnostic switches the active role",
+  "area": "Roles",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Site Management",
+   "Select SME and click Apply"
+  ],
+  "expected": "Header shows Role: SME",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-RBAC-003",
+  "title": "Manager has view-only access to an incident",
+  "area": "Roles",
+  "role": "Manager",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Switch role to Manager",
+   "Open an incident edit URL directly"
+  ],
+  "expected": "All fields are read-only and there is no Save button",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-RBAC-004",
+  "title": "Manager sees no edit actions in the incident list",
+  "area": "Roles",
+  "role": "Manager",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Switch role to Manager",
+   "Open Incident Management",
+   "Check the Actions column"
+  ],
+  "expected": "Only the View action is shown",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-RBAC-005",
+  "title": "Server rejects approval from a SWAT user",
+  "area": "Roles",
+  "role": "SWAT",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Send an approval request for an incident with the SWAT role"
+  ],
+  "expected": "Request is refused with HTTP 403",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-HUB-001",
+  "title": "Resolution Hub lists every incident awaiting SME",
+  "area": "Resolution Hub",
+  "role": "SME",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Switch role to SME",
+   "Open Incident Resolution Hub",
+   "Compare with the Awaiting SME Response tab"
+  ],
+  "expected": "Same number of incidents in both places",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-HUB-002",
+  "title": "SME approves a resolution from the Hub",
+  "area": "Resolution Hub",
+  "role": "SME",
+  "priority": "High",
+  "preconditions": "",
+  "steps": [
+   "Switch role to SME",
+   "Open Incident Resolution Hub",
+   "Click Approve on the first incident"
+  ],
+  "expected": "Incident shows SME approved",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-HUB-003",
+  "title": "Approve and add to Knowledge Base from the Hub",
+  "area": "Resolution Hub",
+  "role": "SME",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Switch role to SME",
+   "Note the Knowledge Base entry count",
+   "Click Approve & add to KB on an incident without an exact KB entry"
+  ],
+  "expected": "Knowledge Base count increases by one",
+  "tag": "@review",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-DSH-001",
+  "title": "Home KPIs match the incident list",
+  "area": "Dashboard",
+  "role": "SWAT",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Home",
+   "Compare Open, In progress and Awaiting SME with the list tabs"
+  ],
+  "expected": "Values match",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-DSH-002",
+  "title": "Dashboard period changes the totals",
+  "area": "Dashboard",
+  "role": "Manager",
+  "priority": "Low",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Dashboard",
+   "Switch between 7, 30 and 90 days"
+  ],
+  "expected": "Totals do not decrease as the period grows",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-DSH-003",
+  "title": "Manager breakdown adds up to the period total",
+  "area": "Dashboard",
+  "role": "Manager",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Dashboard (30 days)",
+   "Add up the manager totals"
+  ],
+  "expected": "Sum equals Incidents created",
+  "tag": "@review",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-RPT-001",
+  "title": "Standard report download matches the on-screen count",
+  "area": "Reporting",
+  "role": "Manager",
+  "priority": "Medium",
+  "preconditions": "",
+  "steps": [
+   "Open Reporting",
+   "Download Unassigned incidents"
+  ],
+  "expected": "Row count in the file equals the count shown",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-RPT-002",
+  "title": "Excel export contains the visible rows",
+  "area": "Reporting",
+  "role": "SWAT",
+  "priority": "Low",
+  "preconditions": "",
+  "steps": [
+   "Open Incident Management, Open tab",
+   "Click Excel",
+   "Open the file"
+  ],
+  "expected": "Header row plus one row per Open incident",
+  "tag": "@review",
+  "suite": "POC extra",
+  "source": "POC"
+ },
+ {
+  "caseId": "QA-KB-001",
+  "title": "Knowledge Base search filters by interface code",
+  "area": "Knowledge Base",
+  "role": "SWAT",
+  "priority": "Low",
+  "preconditions": "",
+  "steps": [
+   "Open Interface Knowledge Base",
+   "Search for an interface code"
+  ],
+  "expected": "Only entries for that interface are listed",
+  "tag": "",
+  "suite": "POC extra",
+  "source": "POC"
+ }
+]
