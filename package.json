@@ -7,7 +7,11 @@
     "start": "node server/index.js",
     "start:fixed": "node scripts/with-env.js BUILD=fixed node server/index.js",
     "test": "playwright test -c tests/playwright.config.js",
-    "test:fixed": "node scripts/with-env.js BUILD=fixed npx playwright test -c tests/playwright.config.js"
+    "test:fixed": "node scripts/with-env.js BUILD=fixed npx playwright test -c tests/playwright.config.js",
+    "ai:draft": "node qa/ai-draft-test.js",
+    "ai:draft:test": "playwright test -c tests/drafts.config.js",
+    "metrics": "node qa/metrics.js",
+    "llm:check": "node qa/llm-check.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0"

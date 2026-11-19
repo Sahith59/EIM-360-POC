@@ -123,6 +123,8 @@ function loadRun(id) {
   const run = readJson(path.join(RUNS, id, "run.json"), null);
   if (!run) return null;
   const approvals = readJson(path.join(DATA, "test-approvals.json"), {});
+  const rca = readJson(path.join(DATA, "rca-reviews.json"), {});
+  run.tests.forEach(t => { if (t.analysis && rca[`${id}/${t.caseId}`]) t.rcaReview = rca[`${id}/${t.caseId}`]; });
   run.tests.forEach(t => { const a = approvals[t.caseId]; if (a) { t.approval = a; if (t.status === "review" && a.decision === "Approved") { t.status = "passed"; t.approvedReview = true; } } });
   const T = run.tests; run.totals = { ...run.totals, passed: T.filter(t => t.status === "passed").length, failed: T.filter(t => t.status === "failed").length, review: T.filter(t => t.status === "review").length };
   return run;
@@ -351,6 +353,20 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/qa/runs") return send(res, 200, runsIndex());
     m = p.match(/^\/api\/qa\/runs\/([\w-]+)$/);
     if (m) { const r = loadRun(m[1]); return r ? send(res, 200, r) : send(res, 404, { error: "Run not found" }); }
+    if (p === "/api/qa/rca-review" && req.method === "POST") {
+      // human in the loop: a QA lead approves, edits or rejects the AI root cause before a defect is raised
+      if (role === "Manager") return deny("Managers have view-only access; a QA lead reviews root causes.");
+      const b = await readBody(req); const r = loadRun(String(b.runId || ""));
+      const ids = Array.isArray(b.caseIds) ? b.caseIds : [b.caseId];
+      if (!r || !ids.length || !ids.every(c => r.tests.some(t => t.caseId === c && t.analysis))) return send(res, 422, { error: "Unknown run or failed test case." });
+      if (!["Approved", "Edited", "Rejected"].includes(b.decision)) return send(res, 422, { error: "Decision must be Approved, Edited or Rejected." });
+      const text = String(b.rootCause || "").trim().slice(0, 1500), comment = String(b.comment || "").trim().slice(0, 500);
+      if (b.decision === "Edited" && text.length < 10) return send(res, 422, { error: "Enter the corrected root cause (at least 10 characters)." });
+      if (b.decision === "Rejected" && comment.length < 5) return send(res, 422, { error: "Say why the AI root cause is rejected." });
+      const all = readJson(path.join(DATA, "rca-reviews.json"), {}), rec = { decision: b.decision, by: USER_NAMES[role], role, at: new Date().toISOString(), ...(b.decision === "Edited" ? { rootCause: text } : {}), ...(comment ? { comment } : {}) };
+      ids.forEach(c => { all[`${r.id}/${c}`] = rec; });
+      writeJson(path.join(DATA, "rca-reviews.json"), all); return send(res, 200, rec);
+    }
     if (p === "/api/qa/catalog") return send(res, 200, readJson(path.join(ROOT, "tests", "catalog.json"), []));
     if (p === "/api/qa/approvals" && req.method === "POST") {
       if (role === "Manager") return deny();
