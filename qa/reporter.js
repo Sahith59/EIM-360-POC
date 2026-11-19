@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { analyze } = require("./triage");
+const llm = require("./llm");
 
 const ROOT = path.join(__dirname, "..");
 const strip = s => String(s || "").replace(/\u001b\[[0-9;]*m/g, "");
@@ -23,6 +24,7 @@ class EimReporter {
     const build = await fetchBuild();
     const tests = [];
     let idx = 0;
+    const jobs = [];
     // keep catalog order so the run reads like the test plan
     const order = id => { const k = catalog.findIndex(c => c.caseId === id); return k < 0 ? 999 : k; };
     this.results.sort((a, b) => order(caseOf(a.test.title)) - order(caseOf(b.test.title)));
@@ -60,15 +62,29 @@ class EimReporter {
         const err = result.errors[0] || result.error || {};
         const msg = strip(err.message);
         entry.error = { message: msg.split("\n").slice(0, 14).join("\n"), ...expectedActual(msg), location: err.location ? { file: path.relative(ROOT, err.location.file).split(path.sep).join("/"), line: err.location.line } : null };
-        entry.analysis = await analyze({ entry, catalogCase: c, dom, build, root: ROOT, runId: this.id });
+        jobs.push(() => analyze({ entry, catalogCase: c, dom, build, root: ROOT, runId: this.id }).then(a => { entry.analysis = a; }));
       }
       tests.push(entry);
     }
+    // triage runs after all tests finish; up to LLM_CONCURRENCY failures are analysed at once
+    const t0 = Date.now(), cfg = llm.config(), limit = Math.max(1, Number(process.env.LLM_CONCURRENCY || 3));
+    if (jobs.length) console.log(`\nTriaging ${jobs.length} failure(s) · LLM: ${cfg.ready ? `${cfg.provider} ${cfg.model}` : `off (${cfg.reason})`}`);
+    await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, async () => { while (jobs.length) await jobs.shift()(); }));
+    const A = tests.filter(t => t.analysis).map(t => t.analysis), L = A.filter(a => a.llm);
+    const sum = f => L.reduce((s, a) => s + (f(a) || 0), 0);
+    const ai = {
+      testsAuthoredBy: "AI agent (LLM), reviewed by an engineer", executedBy: "Playwright (deterministic browser automation)",
+      triage: { provider: cfg.ready ? cfg.provider : "off", model: cfg.ready ? cfg.model : null, failures: A.length, llmAnalysed: L.length, llmErrors: A.filter(a => a.llmError).map(a => a.llmError.message).slice(0, 5),
+        inputTokens: sum(a => a.llm.usage && a.llm.usage.input), outputTokens: sum(a => a.llm.usage && a.llm.usage.output), costUsd: L.every(a => a.llm.costUsd != null) ? Number(sum(a => a.llm.costUsd).toFixed(4)) : null,
+        avgLatencyMs: L.length ? Math.round(sum(a => a.llm.latencyMs) / L.length) : null, wallMs: Date.now() - t0, withScreenshot: L.filter(a => a.llm.usedScreenshot).length,
+        agreesWithRules: L.filter(a => a.agreesWithRules).length, rootCauseGroups: new Set(A.map(a => a.signature)).size },
+    };
     const totals = { total: tests.length, passed: tests.filter(t => t.status === "passed").length, failed: tests.filter(t => t.status === "failed").length, review: tests.filter(t => t.status === "review").length, skipped: tests.filter(t => t.status === "skipped").length };
-    const run = { id: this.id, startedAt: this.started.toISOString(), finishedAt: new Date().toISOString(), durationMs: full.duration ?? (Date.now() - this.started), workers: this.workers, browser: (process.env.PW_CHANNEL || "chrome") === "chrome" ? "Chrome (headless)" : "Chromium (headless)", build, totals, tests };
+    const run = { id: this.id, ai, startedAt: this.started.toISOString(), finishedAt: new Date().toISOString(), durationMs: full.duration ?? (Date.now() - this.started), workers: this.workers, browser: (process.env.PW_CHANNEL || "chrome") === "chrome" ? "Chrome (headless)" : "Chromium (headless)", build, totals, tests };
     fs.writeFileSync(path.join(this.dir, "run.json"), JSON.stringify(run, null, 2));
     console.log(`\nEIM 360 AI test agent · ${this.id}: ${totals.passed} passed, ${totals.failed} failed (triaged), ${totals.review} in review · ${(run.durationMs / 1000).toFixed(1)}s`);
-    console.log(`Open http://localhost:4360/#/qa/runs/${this.id}`);
+    if (ai.triage.failures) console.log(`AI triage: ${ai.triage.llmAnalysed}/${ai.triage.failures} failures analysed by ${ai.triage.model || "rules only"}${ai.triage.costUsd != null && ai.triage.llmAnalysed ? ` · $${ai.triage.costUsd.toFixed(4)}` : ""}${ai.triage.llmErrors.length ? ` · ${ai.triage.llmErrors.length} LLM error(s): ${ai.triage.llmErrors[0]}` : ""}`);
+    console.log(`Open http://localhost:4360/#/qa/runs/${this.id}  ·  npm run metrics for a summary`);
   }
 }
 

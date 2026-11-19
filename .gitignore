@@ -1,7 +1,9 @@
-node_modules/
+node_modules
 test-results/
 playwright-report/
 qa/runs/
 qa/.tmp/
 .DS_Store
 *.log
+.env
+data/

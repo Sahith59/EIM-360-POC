@@ -3,9 +3,13 @@
 //    (expected vs actual, failing step, code references, live DOM) and proposes next steps.
 //    For broken locators it searches the live page for the control the test meant and proposes a healed locator.
 // 2. Known-issue match: if the same failure was already analysed (qa/known-issues.json), reuse that analysis.
-// 3. Optional LLM pass: with ANTHROPIC_API_KEY set, Claude writes the root cause, fix and summary from the evidence.
+// 3. LLM pass (when a provider is configured in .env, see qa/llm.js): the model reads the evidence, the Playwright
+//    step log and the screenshot taken at the point of failure, and writes its own classification, root cause,
+//    next steps and defect title. It does not see the analyst notes; those are kept alongside for comparison.
+//    The AI's root cause is a draft until a QA lead approves, edits or rejects it in the app (human in the loop).
 const fs = require("fs");
 const path = require("path");
+const llm = require("./llm");
 
 const SRC_DIRS = ["server", "public/js"];
 
@@ -167,26 +171,70 @@ async function analyze({ entry, catalogCase, dom, build, root, runId }) {
     }
   }
 
-  if (process.env.ANTHROPIC_API_KEY) {
+  // failures with the same signature are grouped in the report (analyst-note id, otherwise the rule result)
+  a.signature = a.knownIssue ? a.knownIssue.id : `${a.classification}|${a.rootCause}`;
+  a.ruleView = { classification: a.classification, rootCause: a.rootCause, source: a.knownIssue ? `Analyst note ${a.knownIssue.id}` : "Rules" };
+
+  const cfg = llm.config();
+  if (cfg.ready) {
     try {
-      const llm = await askClaude({ entry, catalogCase, a, specLine });
-      if (llm) { Object.assign(a, llm); a.sources.rootCause = a.sources.nextSteps = a.sources.narrative = "LLM"; a.llm = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5"; }
-    } catch (err) { a.llmError = err.message; }
+      const shotRel = (entry.steps.find(s => s.status === "failed" && s.screenshot) || [...entry.steps].reverse().find(s => s.screenshot) || {}).screenshot;
+      const shotPath = shotRel && path.join(root, "qa", "runs", runId, shotRel);
+      const images = shotPath && fs.existsSync(shotPath) ? [{ mime: "image/png", base64: fs.readFileSync(shotPath).toString("base64") }] : [];
+      const r = await llm.complete({ system: SYSTEM, prompt: buildPrompt({ entry, catalogCase, a, specLine, failedStep, loc, dom, build, hasImage: images.length > 0 }), images });
+      const j = r.json || {};
+      const CLASSES = ["Product defect", "Test script maintenance", "Environment / test data"];
+      const cls = CLASSES.find(c => c.toLowerCase() === String(j.classification || "").toLowerCase()) || a.classification;
+      a.classification = cls; a.sources.classification = "LLM";
+      if (j.rootCause) { a.rootCause = String(j.rootCause); a.sources.rootCause = "LLM"; }
+      if (j.component) { a.component = String(j.component); a.sources.component = "LLM"; }
+      if (j.narrative) { a.narrative = String(j.narrative); a.sources.narrative = "LLM"; }
+      if (Array.isArray(j.nextSteps) && j.nextSteps.length) { a.nextSteps = j.nextSteps.map(String).slice(0, 6); a.sources.nextSteps = "LLM"; }
+      if (cls === "Product defect") {
+        a.defect = a.defect || { title: "", severity: "Medium", steps: catalogCase.steps || [], expected: catalogCase.expected || e.expected || "", actual: e.actual != null ? `Expected ${e.expected}, got ${e.actual}.` : msg.split("\n")[0].replace(/^Error: /, "") };
+        if (j.defectTitle) a.defect.title = String(j.defectTitle);
+        if (/^(High|Medium|Low)$/i.test(j.severity || "")) a.defect.severity = j.severity[0].toUpperCase() + j.severity.slice(1).toLowerCase();
+        if (!a.defect.title) a.defect.title = `${entry.area}: ${catalogCase.title || entry.title}`;
+      } else if (a.defect && a.ruleView.classification === "Product defect") a.defect = null;
+      if (j.suggestedTestFix && cls === "Test script maintenance" && !a.suggestedFix) { a.suggestedFix = { type: "test", file: loc, before: specLine, after: String(j.suggestedTestFix), note: "Suggested by the LLM. A person applies the change." }; a.sources.fix = "LLM"; }
+      a.llm = { provider: r.provider, model: r.model, latencyMs: r.latencyMs, usage: r.usage, costUsd: r.costUsd, confidence: typeof j.confidence === "number" ? Math.max(0, Math.min(1, j.confidence)) : null, usedScreenshot: images.length > 0 };
+      a.agreesWithRules = cls === a.ruleView.classification;
+    } catch (err) { a.llmError = { provider: cfg.provider, model: cfg.model, message: String(err.message).slice(0, 300) }; }
   }
-  a.engine = ["Rules" + (a.knownIssue ? ` + analyst note ${a.knownIssue.id} (${a.knownIssue.author})` : ""), a.llm ? `LLM: ${a.llm}` : a.llmError ? `LLM pass failed (${a.llmError})` : "LLM pass off (no ANTHROPIC_API_KEY set)"].join(" · ");
+  a.engine = [`Rules${a.knownIssue ? ` + analyst note ${a.knownIssue.id} (${a.knownIssue.author})` : ""}${a.llm ? " (shown for comparison)" : ""}`,
+    a.llm ? `LLM: ${a.llm.provider} ${a.llm.model}${a.llm.usedScreenshot ? " with screenshot" : ""}` : a.llmError ? `LLM pass failed (${a.llmError.provider}: ${a.llmError.message.slice(0, 120)})` : `LLM pass off (${cfg.reason})`].join(" · ");
   return a;
 }
 
-async function askClaude({ entry, catalogCase, a, specLine }) {
-  const prompt = `You are a senior QA engineer triaging an automated UI test failure.\nTest case: ${JSON.stringify(catalogCase)}\nFailing line: ${specLine}\nError: ${entry.error.message}\nRule-based classification: ${a.classification}\nEvidence: ${a.evidence.join(" | ")}\nReturn JSON only: {"rootCause": string, "narrative": string (2-3 sentences for a test lead), "nextSteps": string[] (3-5 items)}. Do not invent facts beyond the evidence.`;
-  const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 30000);
-  const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", signal: ctl.signal, headers: { "content-type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5", max_tokens: 800, messages: [{ role: "user", content: prompt }] }) });
-  clearTimeout(timer);
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  const text = (await r.json()).content.map(c => c.text || "").join("");
-  const j = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-  return { rootCause: j.rootCause || a.rootCause, narrative: j.narrative, nextSteps: Array.isArray(j.nextSteps) && j.nextSteps.length ? j.nextSteps : a.nextSteps };
+const SYSTEM = `You are a senior QA engineer triaging an automated Playwright UI test failure in EIM 360, an incident-management web application.
+Work only from the evidence given (test case, step log, error, code references, page controls and the screenshot taken when the test failed). Do not invent facts.
+Classify the failure as exactly one of:
+- "Product defect": the application behaves differently from the expected result.
+- "Test script maintenance": the application changed on purpose (for example a renamed control) and the test is out of date.
+- "Environment / test data": the browser, environment, service or data was unavailable or wrong.
+Return one JSON object with these keys:
+{"classification": string, "rootCause": string (2-3 sentences: what is wrong and why the test failed), "component": string (screen, API or file most likely responsible),
+ "confidence": number between 0 and 1, "narrative": string (2-3 sentences for a test lead), "nextSteps": string[] (3-5 concrete actions),
+ "defectTitle": string (only for a product defect, otherwise ""), "severity": "High" | "Medium" | "Low", "suggestedTestFix": string (the corrected test line, only for test script maintenance, otherwise "")}`;
+
+function buildPrompt({ entry, catalogCase, a, specLine, failedStep, loc, dom, build, hasImage }) {
+  const e = entry.error;
+  const controls = (dom && dom.elements || []).slice(0, 60).map(x => `${x.role} "${x.name}"${x.testid ? ` [data-testid=${x.testid}]` : ""}`).join("; ");
+  return [
+    `Build under test: ${build.label}. Browser: Chrome (Playwright).`,
+    `Test case ${entry.caseId}${entry.clientRef ? ` (client ref ${entry.clientRef}, ${entry.suite})` : ""}: ${catalogCase.title || entry.title}`,
+    `Area: ${entry.area}. Role: ${entry.role || "-"}.`,
+    `Manual steps: ${(catalogCase.steps || []).map((s, k) => `${k + 1}. ${s}`).join(" ")}`,
+    `Expected result: ${catalogCase.expected || "-"}`,
+    `Playwright step log: ${entry.steps.map(s => `[${s.status}] ${s.title}`).join(" | ")}`,
+    `Failed at step "${failedStep}" (${loc}). Failing test line: ${specLine || "-"}`,
+    `Error: ${e.message}`,
+    e.expected != null || e.actual != null ? `Expected value: ${e.expected ?? "-"}. Received value: ${e.actual ?? "-"}.` : "",
+    a.codeRefs.length ? `Source lines that contain strings this test relies on: ${a.codeRefs.map(r => `${r.file}:${r.line} ${r.text}`).join(" || ")}` : "",
+    a.evidence.length ? `Collected evidence: ${a.evidence.join(" ")}` : "",
+    controls ? `Controls visible on the page when it failed: ${controls}` : "",
+    hasImage ? "The attached image is the screenshot taken when the step failed." : "No screenshot is available.",
+  ].filter(Boolean).join("\n");
 }
 
 module.exports = { analyze };
