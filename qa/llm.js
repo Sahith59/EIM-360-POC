@@ -78,6 +78,8 @@ function parseJson(text) {
   return JSON.parse(s.slice(i, j + 1));
 }
 
+// Gemini 2.5+/3.x models think before answering and thinking tokens count against maxOutputTokens,
+// so Gemini gets extra headroom (GEMINI_THINKING_HEADROOM, default 6000) on top of the answer budget.
 // One call. prompt: string; images: [{ mime, base64 }]; json: ask for a JSON object.
 // Returns { text, json, usage: {input, output}, costUsd, latencyMs, provider, model }.
 async function complete({ system, prompt, images = [], json = true, maxTokens = 1500, timeoutMs = Number(process.env.LLM_TIMEOUT_MS || 60000) }) {
@@ -92,7 +94,7 @@ async function complete({ system, prompt, images = [], json = true, maxTokens = 
         const base = env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta";
         const parts = [{ text: prompt }, ...images.map(i => ({ inline_data: { mime_type: i.mime, data: i.base64 } }))];
         const r = await post(`${base}/models/${encodeURIComponent(model)}:generateContent`, { "x-goog-api-key": env.GEMINI_API_KEY },
-          { ...(system ? { system_instruction: { parts: [{ text: system }] } } : {}), contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2, ...(json ? { responseMimeType: "application/json" } : {}) } }, timeoutMs);
+          { ...(system ? { system_instruction: { parts: [{ text: system }] } } : {}), contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: maxTokens + Number(env.GEMINI_THINKING_HEADROOM || 6000), temperature: 0.2, ...(json ? { responseMimeType: "application/json" } : {}) } }, timeoutMs);
         const cand = (r.candidates || [])[0];
         text = cand && cand.content ? (cand.content.parts || []).map(p => p.text || "").join("") : "";
         if (!text) throw new Error(`empty response${cand && cand.finishReason ? ` (${cand.finishReason})` : r.promptFeedback ? ` (${JSON.stringify(r.promptFeedback).slice(0, 80)})` : ""}`);
