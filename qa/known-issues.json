@@ -1,0 +1,71 @@
+[
+  {
+    "id": "KI-101",
+    "caseId": "*",
+    "signature": "getByTestId\\('saved-steps'\\)[\\s\\S]*\\\\\\\\",
+    "author": "written by Claude on 19 Nov 2026 after investigating the first run",
+    "rootCause": "Backslashes are removed when resolution steps are saved. The save path strips the \\ character instead of escaping it, so a step such as D:\\landing\\inbound is stored and shown as D:landinginbound. Apostrophes, quotes and ampersands are unaffected.",
+    "component": "server/index.js \u00b7 review save (step text cleaning before persistence)",
+    "defectTitle": "Incident Edit: backslash characters are removed from saved resolution steps",
+    "defectActual": "The saved and displayed step has every backslash removed.",
+    "severity": "High",
+    "developerHint": "Developer: start at the step-text cleaning in the review save handler in server/index.js.",
+    "suggestedFix": {
+      "type": "product",
+      "file": "server/index.js \u00b7 review save",
+      "before": "const clean = t => has(\"N1\") ? t.replace(/\\\\/g, \"\") : t; // persistence layer escaping",
+      "after": "const clean = t => t; // pass text through; escape only in the database layer (parameterised queries)",
+      "note": "Never strip characters for safety; use parameterised writes so backslashes and quotes are stored as entered."
+    },
+    "narrative": "Data-loss defect: windows paths and regex-like steps lose characters silently, so SWAT follows wrong instructions. Two cases (single backslash and mixed special characters) fail for the same reason."
+  },
+  {
+    "id": "KI-102",
+    "caseId": "*",
+    "signature": "active versions for this interface and category[\\s\\S]*Expected: 1",
+    "author": "written by Claude on 19 Nov 2026 after investigating the first run",
+    "rootCause": "When a KB step is edited and approved with Approve & Add to KB, a new version is inserted but the previous version is not expired. Two rows stay active for the same interface and category, which breaks the SCD2 rule of one active version.",
+    "component": "server/index.js \u00b7 Approve & Add to KB (SWAT_KB SCD2 update)",
+    "defectTitle": "SWAT KB: editing a KB step leaves two active versions (previous version not expired)",
+    "defectActual": "After Approve & Add to KB, both the old and the new version are active (active_flag = true) and the old row has no end date.",
+    "severity": "High",
+    "developerHint": "Developer: start at the SCD2 update in the add-kb branch of the review save handler (server/index.js).",
+    "suggestedFix": {
+      "type": "product",
+      "file": "server/index.js \u00b7 add-kb branch",
+      "before": "if (rec && !has(\"N2\")) { rec.active = false; rec.effEnd = now; }",
+      "after": "if (rec) { rec.active = false; rec.effEnd = now; } // expire the previous version in the same transaction",
+      "note": "Expire and insert in one transaction; add a unique constraint on (kb_key) where active_flag = true to stop this recurring."
+    },
+    "narrative": "One root cause behind six failing cases across Smoke, Regression, Must Do and Combinations. Recommendations may now pick either active version, so SWAT can see outdated steps."
+  },
+  {
+    "id": "KI-103",
+    "caseId": "*",
+    "signature": "KB usage count after use",
+    "author": "written by Claude on 19 Nov 2026 after investigating the first run",
+    "rootCause": "The KB usage counter is only incremented on Approve & Add to KB. When the recommended KB steps are used with Approve One Time, the counter does not change, so usage reporting undercounts.",
+    "component": "server/index.js \u00b7 review save (usage counter)",
+    "defectTitle": "SWAT KB: usage counter not incremented when KB steps are used with Approve One Time",
+    "defectActual": "usage_count is unchanged after an incident is approved one time with the recommended KB steps.",
+    "severity": "Medium",
+    "developerHint": "Developer: start at the usage counter update in the review save handler (server/index.js).",
+    "suggestedFix": {
+      "type": "product",
+      "file": "server/index.js \u00b7 review save",
+      "before": "} else if (fromKb && !has(\"N3\")) rec.usage += 1;",
+      "after": "} else if (fromKb) rec.usage += 1;",
+      "note": "Increment usage whenever approved steps come unchanged from a KB recipe, whichever approval button is used."
+    },
+    "narrative": "Reporting defect: KB effectiveness metrics are understated. Two cases (Regression and Must Do) fail for the same reason."
+  },
+  {
+    "id": "KI-104",
+    "caseId": "*",
+    "signature": "waiting for getByRole\\('button', \\{ name: 'Save Work In Progress' \\}\\)",
+    "author": "written by Claude on 19 Nov 2026 after investigating the first run",
+    "rootCause": "In build 2.4.1-rc1 the button was renamed from 'Save Work In Progress' to 'Save Draft'. Saving works the same way; only the tests' locator and the manual test case wording are out of date.",
+    "component": "tests/lib/flows.js (wip flow) and the three manual WIP cases",
+    "narrative": "Not a product defect. Three cases fail for the same reason; one locator update fixes all three."
+  }
+]
