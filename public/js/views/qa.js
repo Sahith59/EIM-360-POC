@@ -9,7 +9,7 @@ const strip = t => `<div class="result-strip"><i style="width:${t.passed / t.tot
 const art = (runId, p) => `/qa-artifacts/${runId}/${p}`;
 const SRC_TITLE = { Rules: "Produced by the rule-based triage from this run's evidence", LLM: "Written by the LLM pass from this run's evidence" };
 const src = (a, k) => { const v = a.sources && a.sources[k]; if (!v) return ""; const t = SRC_TITLE[v] || `Analyst note ${v}: ${a.knownIssue ? a.knownIssue.author : ""}, reused because this run's failure matches it`; return `<span class="pill" style="font-size:11px;padding:0 6px;margin-left:4px" title="${esc(t)}">${esc(v === "Rules" || v === "LLM" ? v : "Analyst note " + v)}</span>`; };
-const PLAN_MIN = 5; // conservative planning estimate for a short (2–4 step) case incl. recording evidence; replaced by measured timings
+const PLAN_MIN = 10; // planning estimate per case incl. recording evidence and write-up (same as the business case); replaced by measured timings
 
 async function latestRunId(full) { const r = await api("/api/qa/runs"); const ok = full ? r.find(x => x.complete && !x.envFailures) : r[0]; return (ok || r[0] || {}).id; }
 

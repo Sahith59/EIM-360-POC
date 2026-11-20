@@ -70,7 +70,7 @@ Never paste the key into chat, code or a commit.
 - **Failure triage** for each failure: a classification (product defect, test-script problem or environment), root cause, affected code, evidence, next steps, a suggested fix and a draft defect report you can copy or download. For a renamed control it also gives a *locator repair suggestion*: it finds the matching control on the live page and proposes the corrected test line, which a person then applies. Each field shows its source (Rules, Analyst note or LLM)
 - **Test Case Catalog**: all 127 test cases with their client references, each mapped to its automated test
 - **Manual Timing**: a stopwatch a tester uses to time manual execution
-- **Manual vs AI**: the measured AI run time against manual time, plus weekly and nightly projections to the ~300-case inventory. Manual time is a 5-minute-per-case planning estimate until testers record real timings
+- **Manual vs AI**: the measured AI run time against manual time, plus weekly and nightly projections to the ~300-case inventory. Manual time is a 10-minute-per-case planning estimate (as in the business case) until testers record real timings
 
 ## Test suites
 
@@ -106,7 +106,7 @@ While the suite was being written, it also caught bugs in this mock (not in the 
 
 - The LLM side is **measured** too once a provider is configured: `npm run metrics` reports failures analysed, tokens, cost, time per failure and the human review outcome.
 - The AI side is **measured**: run duration, per-test time, steps and screenshots come from `qa/runs/<id>/run.json`. The headline time is wall-clock on 4 parallel workers; the page also shows the back-to-back total. The mock answers faster than the real application will.
-- The manual side is **measured only after testers record timings** on the Manual Timing page. Until then, the comparison uses a clearly labelled 5-minute planning estimate per case.
+- The manual side is **measured only after testers record timings** on the Manual Timing page. Until then, the comparison uses a clearly labelled 10-minute planning estimate per case.
 
 ## Layout
 
