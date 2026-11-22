@@ -144,7 +144,7 @@ function describeElements(els) {
 // Independent of the model: every value the AI typed is looked for in what the page shows and what its SQL queries
 // returned. A near-match (same letters and digits) that is not an exact match means the application changed the value.
 const squash = v => String(v ?? "").replace(/\s+/g, " ").trim();
-const letters = v => String(v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const letters = v => String(v ?? "").replace(/[^A-Za-z0-9]/g, "");  // case-sensitive: only punctuation/symbol changes count
 function integrityCheck(typed, sources) {
   const issues = [];
   for (const t of [...new Set(typed.map(squash))].filter(t => t.length >= 8 && /[^a-z0-9 ]/i.test(t))) {
@@ -249,9 +249,12 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     ].filter(x => x !== "").join("\n");
     pendingQueryResults = [];
 
-    let r;
-    try { r = await llm.complete({ system: SYSTEM, prompt, images: shot ? [{ mime: "image/jpeg", base64: shot.toString("base64") }] : [], maxTokens: 3000 }); }
-    catch (err) { final = { verdict: "inconclusive", error: true, summary: `The AI agent stopped: the model call failed (${clip(err.message, 200)}).`, confidence: 0 }; break; }
+    let r, lastErr;
+    for (let attempt = 1; attempt <= 3 && !r; attempt++) {
+      try { r = await llm.complete({ system: SYSTEM, prompt: attempt === 1 ? prompt : prompt + `\n\nYour previous reply could not be used (${clip(lastErr.message, 120)}). Reply again with ONE valid JSON object; inside JSON strings write a backslash as \\\\ and a double quote as \\".`, images: shot ? [{ mime: "image/jpeg", base64: shot.toString("base64") }] : [], maxTokens: 3000 }); }
+      catch (err) { lastErr = err; if (err.status && err.status < 500 && err.status !== 429) break; }
+    }
+    if (!r) { final = { verdict: "inconclusive", error: true, summary: `The AI agent stopped: the model call failed 3 times (${clip(lastErr && lastErr.message, 200)}).`, confidence: 0 }; break; }
     calls++; usage.input += r.usage.input; usage.output += r.usage.output; usage.cached += r.usage.cached || 0; llmMs += r.latencyMs; if (r.costUsd == null) costKnown = false; else cost += r.costUsd;
     const j = r.json || {};
     const acts = (Array.isArray(j.actions) ? j.actions : j.type ? [j] : []).slice(0, MAX_ACTIONS);
@@ -269,7 +272,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
         challenged = true;
         rec.actions.push({ type: "finish", verdict: "pass", ok: false, error: "integrity check: typed value changed by the application" });
         turnsLog.push(rec);
-        history.push(`Turn ${turn}: you returned a PASS verdict, but the independent integrity check found values that the application changed:\n${issues.map(x => `  you typed ${JSON.stringify(x.typed)} but ${x.where} shows ${JSON.stringify(x.found)}`).join("\n")}\n  Re-examine (you may query the database again) and give your final verdict.`);
+        history.push(`Turn ${turn}: you returned a PASS verdict, but the independent integrity check found values that the application changed:\n${issues.map(x => `  you typed ${JSON.stringify(x.typed)} but ${x.where} shows ${JSON.stringify(x.found)}`).join("\n")}\n  This check is mechanical and can be wrong: it may have matched similar text elsewhere (for example the job log or
+  another incident). Confirm with the stored value (query the database) before changing your verdict, then give your final verdict.`);
         continue;
       }
     }

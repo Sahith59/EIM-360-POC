@@ -77,7 +77,12 @@ function parseJson(text) {
   const s = String(text || "").replace(/^```(?:json)?\s*|\s*```$/g, "");
   const i = s.indexOf("{"), j = s.lastIndexOf("}");
   if (i < 0 || j < i) throw new Error("model did not return JSON");
-  return JSON.parse(s.slice(i, j + 1));
+  const body = s.slice(i, j + 1);
+  try { return JSON.parse(body); }
+  catch (e) {
+    // common model slip: a lone backslash inside a string (e.g. a Windows path) that is not a valid JSON escape
+    try { return JSON.parse(body.replace(/\\(?!["\\/bfnrtu])/g, "\\\\")); } catch { throw e; }
+  }
 }
 
 // Gemini 2.5+/3.x models think before answering and thinking tokens count against maxOutputTokens,
