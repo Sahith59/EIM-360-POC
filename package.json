@@ -11,7 +11,9 @@
     "ai:draft": "node qa/ai-draft-test.js",
     "ai:draft:test": "playwright test -c tests/drafts.config.js",
     "metrics": "node qa/metrics.js",
-    "llm:check": "node qa/llm-check.js"
+    "llm:check": "node qa/llm-check.js",
+    "test:agent": "playwright test -c tests/agent.config.js",
+    "test:agent:fixed": "node scripts/with-env.js BUILD=fixed npx playwright test -c tests/agent.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0"
