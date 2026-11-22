@@ -19,7 +19,12 @@ fs.mkdirSync(DATA, { recursive: true });
 const BUILD = process.env.BUILD === "fixed"
   ? { version: "2.4.1", label: "2.4.1 (fixed)", defects: [] }
   : { version: "2.4.1-rc1", label: "2.4.1-rc1 (release candidate)", defects: ["N1", "N2", "N3", "UI2"] };
-const has = d => BUILD.defects.includes(d);
+// EXTRA_DEFECTS adds defects that have no analyst note anywhere (e.g. N5), to prove the AI diagnoses failures it has never seen.
+// They are deliberately not shown in the build label, so nothing in the AI prompt hints at them.
+const EXTRA = (process.env.EXTRA_DEFECTS || "").split(",").map(x => x.trim()).filter(Boolean);
+const has = d => BUILD.defects.includes(d) || EXTRA.includes(d);
+// LATENCY_MS delays every API response to simulate a production network and database round trip.
+const LATENCY = Math.max(0, Number(process.env.LATENCY_MS || 0));
 const FAILURE_MIN = has("D2") ? 5 : 10;
 const FAILURE_MAX = 500;
 
@@ -146,6 +151,7 @@ const server = http.createServer(async (req, res) => {
   const t0 = process.hrtime.bigint();
   const url = new URL(req.url, "http://localhost");
   const p = url.pathname;
+  if (LATENCY && p.startsWith("/api/") && !p.startsWith("/api/qa/")) await new Promise(r => setTimeout(r, LATENCY));
   const role = ROLES.includes(req.headers["x-role"]) ? req.headers["x-role"] : "Manager"; // no role header = most restricted
   const deny = (msg = `The ${role} role cannot perform this action.`) => send(res, 403, { error: msg });
   try {
@@ -240,7 +246,7 @@ const server = http.createServer(async (req, res) => {
         }
         if (b.workedBy && !S.people.swat.includes(b.workedBy)) errors.workedBy = "Select an assignee from the list.";
         if (Object.keys(errors).length) return send(res, 422, { error: "Please correct the highlighted fields.", errors });
-        const clean = t => has("N1") ? t.replace(/\\/g, "") : t; // persistence layer escaping
+        const clean = t => { let v = has("N1") ? t.replace(/\\/g, "") : t; if (has("N5")) v = v.replace(/&/g, "&amp;"); return v; }; // persistence layer escaping
         // save draft values
         inc.workedBy = b.workedBy || inc.workedBy;
         inc.review.failure = { decision: pred ? fd.decision || null : "Manual", correction: String(fd.correction || "") };

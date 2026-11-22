@@ -158,7 +158,7 @@ async function analyze({ entry, catalogCase, dom, build, root, runId }) {
   // analyst note: written once for a failure that has been investigated, reused only when the same failure recurs
   const kiFile = path.join(root, "qa", "known-issues.json");
   if (fs.existsSync(kiFile)) {
-    const ki = JSON.parse(fs.readFileSync(kiFile, "utf8")).find(k => (k.caseId === "*" || k.caseId === entry.caseId) && new RegExp(k.signature).test(msg));
+    const ki = JSON.parse(fs.readFileSync(kiFile, "utf8")).find(k => (k.caseId === "*" || k.caseId === entry.caseId) && new RegExp(k.signature).test(msg) && !(k.unless && new RegExp(k.unless).test(msg)));
     if (ki) {
       const tag = `${ki.id}`;
       a.knownIssue = { id: ki.id, author: ki.author };
@@ -181,8 +181,18 @@ async function analyze({ entry, catalogCase, dom, build, root, runId }) {
       const shotRel = (entry.steps.find(s => s.status === "failed" && s.screenshot) || [...entry.steps].reverse().find(s => s.screenshot) || {}).screenshot;
       const shotPath = shotRel && path.join(root, "qa", "runs", runId, shotRel);
       const images = shotPath && fs.existsSync(shotPath) ? [{ mime: "image/png", base64: fs.readFileSync(shotPath).toString("base64") }] : [];
-      const r = await llm.complete({ system: SYSTEM, prompt: buildPrompt({ entry, catalogCase, a, specLine, failedStep, loc, dom, build, hasImage: images.length > 0 }), images });
+      const promptText = buildPrompt({ entry, catalogCase, a, specLine, failedStep, loc, dom, build, hasImage: images.length > 0 });
+      const r = await llm.complete({ system: SYSTEM, prompt: promptText, images });
       const j = r.json || {};
+      // audit trail: exactly what was sent to the model and what came back, saved with the run
+      try {
+        const dir = path.join(root, "qa", "runs", runId, "llm"); fs.mkdirSync(dir, { recursive: true });
+        const img = images[0] ? Buffer.from(images[0].base64, "base64") : null;
+        fs.writeFileSync(path.join(dir, `${entry.caseId}.json`), JSON.stringify({ caseId: entry.caseId, at: new Date().toISOString(), provider: r.provider, model: r.model, latencyMs: r.latencyMs, usage: r.usage, costUsd: r.costUsd,
+          request: { system: SYSTEM, prompt: promptText, image: img ? { file: shotRel, bytes: img.length, sha256: require("crypto").createHash("sha256").update(img).digest("hex") } : null },
+          response: r.text }, null, 2));
+        a.llmAudit = `llm/${entry.caseId}.json`;
+      } catch { /* audit is best-effort */ }
       const CLASSES = ["Product defect", "Test script maintenance", "Environment / test data"];
       const cls = CLASSES.find(c => c.toLowerCase() === String(j.classification || "").toLowerCase()) || a.classification;
       a.classification = cls; a.sources.classification = "LLM";

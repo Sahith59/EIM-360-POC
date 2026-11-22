@@ -17,7 +17,8 @@
       "after": "const clean = t => t; // pass text through; escape only in the database layer (parameterised queries)",
       "note": "Never strip characters for safety; use parameterised writes so backslashes and quotes are stored as entered."
     },
-    "narrative": "Data-loss defect: windows paths and regex-like steps lose characters silently, so SWAT follows wrong instructions. Two cases (single backslash and mixed special characters) fail for the same reason."
+    "narrative": "Data-loss defect: windows paths and regex-like steps lose characters silently, so SWAT follows wrong instructions. Two cases (single backslash and mixed special characters) fail for the same reason.",
+    "unless": "&amp;"
   },
   {
     "id": "KI-102",

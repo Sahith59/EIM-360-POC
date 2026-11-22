@@ -80,7 +80,8 @@ class EimReporter {
         agreesWithRules: L.filter(a => a.agreesWithRules).length, rootCauseGroups: new Set(A.map(a => a.signature)).size },
     };
     const totals = { total: tests.length, passed: tests.filter(t => t.status === "passed").length, failed: tests.filter(t => t.status === "failed").length, review: tests.filter(t => t.status === "review").length, skipped: tests.filter(t => t.status === "skipped").length };
-    const run = { id: this.id, ai, startedAt: this.started.toISOString(), finishedAt: new Date().toISOString(), durationMs: full.duration ?? (Date.now() - this.started), workers: this.workers, browser: (process.env.PW_CHANNEL || "chrome") === "chrome" ? "Chrome (headless)" : "Chromium (headless)", build, totals, tests };
+    const conditions = { extraDefects: process.env.EXTRA_DEFECTS || null, latencyMs: Number(process.env.LATENCY_MS || 0) || null, playwrightMs: full.duration ?? null, triageMs: ai.triage.wallMs };
+    const run = { id: this.id, ai, conditions, startedAt: this.started.toISOString(), finishedAt: new Date().toISOString(), durationMs: full.duration ?? (Date.now() - this.started), workers: this.workers, browser: (process.env.PW_CHANNEL || "chrome") === "chrome" ? "Chrome (headless)" : "Chromium (headless)", build, totals, tests };
     fs.writeFileSync(path.join(this.dir, "run.json"), JSON.stringify(run, null, 2));
     console.log(`\nEIM 360 AI test agent · ${this.id}: ${totals.passed} passed, ${totals.failed} failed (triaged), ${totals.review} in review · ${(run.durationMs / 1000).toFixed(1)}s`);
     if (ai.triage.failures) console.log(`AI triage: ${ai.triage.llmAnalysed}/${ai.triage.failures} failures analysed by ${ai.triage.model || "rules only"}${ai.triage.costUsd != null && ai.triage.llmAnalysed ? ` · $${ai.triage.costUsd.toFixed(4)}` : ""}${ai.triage.llmErrors.length ? ` · ${ai.triage.llmErrors.length} LLM error(s): ${ai.triage.llmErrors[0]}` : ""}`);
