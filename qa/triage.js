@@ -10,6 +10,7 @@
 const fs = require("fs");
 const path = require("path");
 const llm = require("./llm");
+const dbtool = require("./dbtool");
 
 const SRC_DIRS = ["server", "public/js"];
 
@@ -177,22 +178,30 @@ async function analyze({ entry, catalogCase, dom, build, root, runId }) {
 
   const cfg = llm.config();
   if (cfg.ready) {
+    let ro = null;
     try {
       const shotRel = (entry.steps.find(s => s.status === "failed" && s.screenshot) || [...entry.steps].reverse().find(s => s.screenshot) || {}).screenshot;
       const shotPath = shotRel && path.join(root, "qa", "runs", runId, shotRel);
       const images = shotPath && fs.existsSync(shotPath) ? [{ mime: "image/png", base64: fs.readFileSync(shotPath).toString("base64") }] : [];
-      const promptText = buildPrompt({ entry, catalogCase, a, specLine, failedStep, loc, dom, build, hasImage: images.length > 0 });
-      const r = await llm.complete({ system: SYSTEM, prompt: promptText, images });
-      const j = r.json || {};
-      // audit trail: exactly what was sent to the model and what came back, saved with the run
-      try {
-        const dir = path.join(root, "qa", "runs", runId, "llm"); fs.mkdirSync(dir, { recursive: true });
-        const img = images[0] ? Buffer.from(images[0].base64, "base64") : null;
-        fs.writeFileSync(path.join(dir, `${entry.caseId}.json`), JSON.stringify({ caseId: entry.caseId, at: new Date().toISOString(), provider: r.provider, model: r.model, latencyMs: r.latencyMs, usage: r.usage, costUsd: r.costUsd,
-          request: { system: SYSTEM, prompt: promptText, image: img ? { file: shotRel, bytes: img.length, sha256: require("crypto").createHash("sha256").update(img).digest("hex") } : null },
-          response: r.text }, null, 2));
-        a.llmAudit = `llm/${entry.caseId}.json`;
-      } catch { /* audit is best-effort */ }
+      const basePrompt = buildPrompt({ entry, catalogCase, a, specLine, failedStep, loc, dom, build, hasImage: images.length > 0 });
+      // read-only access to the database snapshot taken when this test failed
+      ro = dbtool.openReadOnly(path.join(root, "qa", "runs", runId, "db", `${entry.caseId}.sqlite`));
+      const schemaTxt = ro ? dbtool.schema(ro) : null;
+      const MAXQ = Math.max(0, Number(process.env.LLM_MAX_DB_QUERIES ?? 3));
+      const dbLog = [], turns = [];
+      let r, j = {}, usage = { input: 0, output: 0 }, cost = 0, ms = 0, costKnown = true;
+      for (let turn = 0; turn <= MAXQ; turn++) {
+        const last = turn === MAXQ || !ro;
+        const prompt = basePrompt + (ro ? `\n\nDATABASE (SQLite snapshot taken when the test failed; you have READ-ONLY access):\n${schemaTxt}\n` +
+          (dbLog.length ? `\nQueries you have run so far:\n${dbLog.map((q, k) => `${k + 1}. ${q.sql}\n   -> ${JSON.stringify(q.result).slice(0, 1500)}`).join("\n")}\n` : "") +
+          (last ? "\nYou cannot run more queries. Reply now with the final JSON object (action \"final\")." : `\nYou may run ${MAXQ - dbLog.length} more read-only quer${MAXQ - dbLog.length === 1 ? "y" : "ies"}.`) : "");
+        r = await llm.complete({ system: SYSTEM + (ro ? DB_RULES : ""), prompt, images });
+        usage.input += r.usage.input; usage.output += r.usage.output; ms += r.latencyMs; if (r.costUsd == null) costKnown = false; else cost += r.costUsd;
+        j = r.json || {};
+        turns.push({ prompt, response: r.text });
+        if (ro && !last && String(j.action).toLowerCase() === "query" && j.sql) { dbLog.push({ sql: String(j.sql), why: j.why ? String(j.why) : "", result: dbtool.query(ro, j.sql) }); continue; }
+        break;
+      }
       const CLASSES = ["Product defect", "Test script maintenance", "Environment / test data"];
       const cls = CLASSES.find(c => c.toLowerCase() === String(j.classification || "").toLowerCase()) || a.classification;
       a.classification = cls; a.sources.classification = "LLM";
@@ -200,6 +209,8 @@ async function analyze({ entry, catalogCase, dom, build, root, runId }) {
       if (j.component) { a.component = String(j.component); a.sources.component = "LLM"; }
       if (j.narrative) { a.narrative = String(j.narrative); a.sources.narrative = "LLM"; }
       if (Array.isArray(j.nextSteps) && j.nextSteps.length) { a.nextSteps = j.nextSteps.map(String).slice(0, 6); a.sources.nextSteps = "LLM"; }
+      if (j.dbFindings) { a.dbFindings = String(j.dbFindings); }
+      if (dbLog.length) { a.dbQueries = dbLog.map(q => ({ sql: q.sql, why: q.why, rowCount: q.result.rowCount ?? null, error: q.result.error || null, sample: (q.result.rows || []).slice(0, 5) })); a.evidence.push(`The AI ran ${dbLog.length} read-only SQL quer${dbLog.length === 1 ? "y" : "ies"} against the database snapshot.`); }
       if (cls === "Product defect") {
         a.defect = a.defect || { title: "", severity: "Medium", steps: catalogCase.steps || [], expected: catalogCase.expected || e.expected || "", actual: e.actual != null ? `Expected ${e.expected}, got ${e.actual}.` : msg.split("\n")[0].replace(/^Error: /, "") };
         if (j.defectTitle) a.defect.title = String(j.defectTitle);
@@ -207,12 +218,23 @@ async function analyze({ entry, catalogCase, dom, build, root, runId }) {
         if (!a.defect.title) a.defect.title = `${entry.area}: ${catalogCase.title || entry.title}`;
       } else if (a.defect && a.ruleView.classification === "Product defect") a.defect = null;
       if (j.suggestedTestFix && cls === "Test script maintenance" && !a.suggestedFix) { a.suggestedFix = { type: "test", file: loc, before: specLine, after: String(j.suggestedTestFix), note: "Suggested by the LLM. A person applies the change." }; a.sources.fix = "LLM"; }
-      a.llm = { provider: r.provider, model: r.model, latencyMs: r.latencyMs, usage: r.usage, costUsd: r.costUsd, confidence: typeof j.confidence === "number" ? Math.max(0, Math.min(1, j.confidence)) : null, usedScreenshot: images.length > 0 };
+      a.llm = { provider: r.provider, model: r.model, calls: turns.length, latencyMs: ms, usage, costUsd: costKnown ? cost : null, confidence: typeof j.confidence === "number" ? Math.max(0, Math.min(1, j.confidence)) : null, usedScreenshot: images.length > 0, dbAccess: ro ? "read-only" : "none" };
       a.agreesWithRules = cls === a.ruleView.classification;
+      // the agent's only write: a draft note in its own sandbox table (reversible; never application data)
+      try { if (j.note || a.rootCause) dbtool.addNote(root, { runId, caseId: entry.caseId, model: r.model, note: j.note || a.rootCause }); a.noteSaved = true; } catch {}
+      try {
+        const dir = path.join(root, "qa", "runs", runId, "llm"); fs.mkdirSync(dir, { recursive: true });
+        const img = images[0] ? Buffer.from(images[0].base64, "base64") : null;
+        fs.writeFileSync(path.join(dir, `${entry.caseId}.json`), JSON.stringify({ caseId: entry.caseId, at: new Date().toISOString(), provider: r.provider, model: r.model, calls: turns.length, latencyMs: ms, usage, costUsd: a.llm.costUsd,
+          system: SYSTEM + (ro ? DB_RULES : ""), image: img ? { file: shotRel, bytes: img.length, sha256: require("crypto").createHash("sha256").update(img).digest("hex") } : null,
+          database: ro ? { access: "read-only snapshot", file: `db/${entry.caseId}.sqlite`, queries: dbLog } : null, turns }, null, 2));
+        a.llmAudit = `llm/${entry.caseId}.json`;
+      } catch { /* audit is best-effort */ }
     } catch (err) { a.llmError = { provider: cfg.provider, model: cfg.model, message: String(err.message).slice(0, 300) }; }
+    finally { try { ro && ro.close(); } catch {} }
   }
   a.engine = [`Rules${a.knownIssue ? ` + analyst note ${a.knownIssue.id} (${a.knownIssue.author})` : ""}${a.llm ? " (shown for comparison)" : ""}`,
-    a.llm ? `LLM: ${a.llm.provider} ${a.llm.model}${a.llm.usedScreenshot ? " with screenshot" : ""}` : a.llmError ? `LLM pass failed (${a.llmError.provider}: ${a.llmError.message.slice(0, 120)})` : `LLM pass off (${cfg.reason})`].join(" · ");
+    a.llm ? `LLM: ${a.llm.provider} ${a.llm.model}${a.llm.usedScreenshot ? " with screenshot" : ""}${a.dbQueries ? `, ${a.dbQueries.length} read-only SQL quer${a.dbQueries.length === 1 ? "y" : "ies"}` : a.llm.dbAccess === "read-only" ? ", read-only DB access (no query needed)" : ""}` : a.llmError ? `LLM pass failed (${a.llmError.provider}: ${a.llmError.message.slice(0, 120)})` : `LLM pass off (${cfg.reason})`].join(" · ");
   return a;
 }
 
@@ -226,6 +248,12 @@ Return one JSON object with these keys:
 {"classification": string, "rootCause": string (2-3 sentences: what is wrong and why the test failed), "component": string (screen, API or file most likely responsible),
  "confidence": number between 0 and 1, "narrative": string (2-3 sentences for a test lead), "nextSteps": string[] (3-5 concrete actions),
  "defectTitle": string (only for a product defect, otherwise ""), "severity": "High" | "Medium" | "Low", "suggestedTestFix": string (the corrected test line, only for test script maintenance, otherwise "")}`;
+
+const DB_RULES = `
+You also have READ-ONLY SQL access to a snapshot of the application's SQLite database, taken at the moment the test failed.
+To run a query, reply with {"action": "query", "sql": "<one SELECT statement>", "why": "<what you want to check>"} and nothing else; the result is returned to you.
+Use queries to confirm what was actually stored (saved values, versions, active flags, counters, events) when that helps. You cannot modify data.
+When you have enough evidence, reply with {"action": "final", ...the fields above..., "dbFindings": "<what the data showed, or empty>", "note": "<one-line draft note for the QA lead>"}.`;
 
 function buildPrompt({ entry, catalogCase, a, specLine, failedStep, loc, dom, build, hasImage }) {
   const e = entry.error;
