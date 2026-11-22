@@ -39,6 +39,9 @@ How to work:
   persistence, counters, versions or synchronisation, what the database actually stored (read-only SQL). Check the
   state before and after when the case is about a change (for example a counter).
 - Write values through the UI only. The database is read-only for you.
+- Values must round-trip exactly. Compare what was stored and displayed with what you typed, character by character.
+  Any missing, added or changed character (for example a dropped backslash or quote, or & shown as &amp;) means the
+  expected result was NOT met: that is a failure, never a "minor handling difference" or an encoding quirk to explain away.
 - Never invent evidence. If you cannot complete the case or the evidence is contradictory, say so.
 
 Verdicts:
@@ -137,6 +140,32 @@ function describeElements(els) {
   }).join("\n");
 }
 
+// ---------------------------------------------------------------- typed-value integrity check
+// Independent of the model: every value the AI typed is looked for in what the page shows and what its SQL queries
+// returned. A near-match (same letters and digits) that is not an exact match means the application changed the value.
+const squash = v => String(v ?? "").replace(/\s+/g, " ").trim();
+const letters = v => String(v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function integrityCheck(typed, sources) {
+  const issues = [];
+  for (const t of [...new Set(typed.map(squash))].filter(t => t.length >= 8 && /[^a-z0-9 ]/i.test(t))) {
+    const nt = letters(t); if (nt.length < 6) continue;
+    for (const src of sources) {
+      const ss = squash(src.text);
+      if (ss.includes(t)) continue;
+      // the value came back HTML-escaped (e.g. & stored as &amp;)
+      const variants = [t.replace(/&/g, "&amp;"), t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;")];
+      const esc = variants.find(v => v !== t && ss.includes(v));
+      if (esc) { issues.push({ typed: t, found: esc, where: src.where }); break; }
+      if (!letters(ss).includes(nt)) continue;
+      // find the shortest window of the source with the same letters, to show what was stored
+      let found = null;
+      for (let i = 0; i < ss.length && !found; i++) { if (!/[a-z0-9]/i.test(ss[i])) continue; for (let j = i + 1; j <= Math.min(ss.length, i + t.length * 2 + 20); j++) if (letters(ss.slice(i, j)) === nt) { while (j < ss.length && /[^a-z0-9\s]/i.test(ss[j]) && j - i < t.length) j++; found = ss.slice(i, j); break; } }
+      if (found && found !== t) { issues.push({ typed: t, found, where: src.where }); break; }
+    }
+  }
+  return issues;
+}
+
 // ---------------------------------------------------------------- main loop
 async function runCase({ page, app, step, testInfo, caseDef }) {
   const cfg = llm.config();
@@ -181,7 +210,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
 
   const history = [], audit = [], queries = [], turnsLog = [];
   let usage = { input: 0, output: 0, cached: 0 }, cost = 0, costKnown = true, llmMs = 0, calls = 0, actionsRun = 0, final = null, lastShot = null;
-  let pendingQueryResults = [];
+  let pendingQueryResults = [], challenged = false, integrity = null;
+  const typedValues = [], seen = [];
 
   for (let turn = 1; turn <= MAX_TURNS && !final; turn++) {
     const obs = await snapshot(page);
@@ -190,6 +220,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     const newApi = api.splice(0);
     const shot = await page.screenshot({ type: "jpeg", quality: 60 }).catch(() => null);
     lastShot = shot;
+    seen.push({ where: `page ${obs.url}`, text: obs.text }, ...obs.elements.filter(e => e.value).map(e => ({ where: `field "${e.label}"`, text: e.value })));
     const remaining = MAX_TURNS - turn;
     const prompt = [
       // static parts first (identical across turns and cases) so the provider's prompt cache can reuse them
@@ -229,6 +260,19 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     audit.push({ turn, prompt, response: r.text, usage: r.usage, latencyMs: r.latencyMs });
 
     const fin = acts.find(a => String(a.type).toLowerCase() === "finish");
+    if (fin && String(fin.verdict).toLowerCase() === "pass" && !challenged) {
+      // a fresh look at the final page, then the independent check
+      try { const o2 = await snapshot(page); seen.push({ where: `page ${o2.url}`, text: o2.text }); } catch {}
+      const issues = integrityCheck(typedValues, seen);
+      integrity = { checked: typedValues.length, issues };
+      if (issues.length) {
+        challenged = true;
+        rec.actions.push({ type: "finish", verdict: "pass", ok: false, error: "integrity check: typed value changed by the application" });
+        turnsLog.push(rec);
+        history.push(`Turn ${turn}: you returned a PASS verdict, but the independent integrity check found values that the application changed:\n${issues.map(x => `  you typed ${JSON.stringify(x.typed)} but ${x.where} shows ${JSON.stringify(x.found)}`).join("\n")}\n  Re-examine (you may query the database again) and give your final verdict.`);
+        continue;
+      }
+    }
     if (fin) { final = fin; rec.actions.push({ type: "finish", verdict: fin.verdict }); history.push(`Turn ${turn}: ${rec.step} -> finished`); turnsLog.push(rec); break; }
     if (!acts.length) { history.push(`Turn ${turn}: you returned no valid action. Return at least one action.`); turnsLog.push(rec); continue; }
 
@@ -245,7 +289,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
         try {
           if (["click", "fill", "select", "check"].includes(type) && !(await loc.count())) throw new Error(`ref ${a.ref} is not on the current page (refs change every turn)`);
           if (type === "click") await loc.click({ timeout: 5000 });
-          else if (type === "fill") await loc.fill(String(a.text ?? ""), { timeout: 5000 });
+          else if (type === "fill") { await loc.fill(String(a.text ?? ""), { timeout: 5000 }); typedValues.push(String(a.text ?? "")); }
           else if (type === "select") { try { await loc.selectOption({ label: String(a.option) }, { timeout: 5000 }); } catch { await loc.selectOption(String(a.option), { timeout: 5000 }); } }
           else if (type === "check") await loc.check({ timeout: 5000 });
           else if (type === "press") await page.keyboard.press(String(a.key || "Enter"));
@@ -266,6 +310,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
       const out = ro ? dbtool.query(ro, q.sql) : { error: "database not available" };
       try { ro && ro.close(); } catch {}
       queries.push({ turn, sql: String(q.sql || ""), why: String(q.why || ""), rowCount: out.rowCount ?? null, error: out.error || null, sample: (out.rows || []).slice(0, 8) });
+      (out.rows || []).forEach(row => Object.values(row).forEach(v => typeof v === "string" && seen.push({ where: "SQL result", text: v })));
       pendingQueryResults.push(`SQL: ${q.sql}\n  -> ${out.error ? "ERROR " + out.error : `${out.rowCount} row(s): ${clip(JSON.stringify(out.rows), 2500)}`}`);
       results.push({ type: "query", value: clip(q.sql, 300), why: q.why, ok: !out.error, rows: out.rowCount ?? null, error: out.error || undefined });
     }
@@ -288,6 +333,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     classification: final.classification || null, rootCause: final.rootCause || "", component: final.component || "", narrative: final.narrative || "",
     nextSteps: arr(final.nextSteps), defectTitle: final.defectTitle || "", severity: final.severity || "", dbFindings: final.dbFindings || "", reproSteps: arr(final.reproSteps),
     harnessError: !!final.error,
+    integrityCheck: integrity || { checked: typedValues.length, issues: integrityCheck(typedValues, seen) },
+    revisedAfterCheck: challenged,
     turns: turnsLog.length, calls, actions: actionsRun, queries, timeline: turnsLog,
     usage, costUsd: costKnown ? Number(cost.toFixed(5)) : null, llmMs, wallMs: Date.now() - t0,
     audit: `agent/${caseDef.caseId}.json`,
