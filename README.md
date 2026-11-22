@@ -1,6 +1,44 @@
 # EIM 360 · AI Test Agent POC (Playwright)
 
-A working mock of the **EIM 360 Incident Management module**, plus an **AI + Playwright** test agent for it:
+A working mock of the **EIM 360 Incident Management module**, plus an **AI + Playwright** test agent for it.
+
+## AI-driven run: the AI drives Playwright (`npm run test:agent`)
+
+The LLM in `.env` (Gemini 3.5 Flash by default) handles each manual test case from start to finish. There is no
+scripted test code per case:
+
+1. **Context.** For every turn the AI gets the manual test case, the application guide (`qa/agent/app-guide.md`, the
+   requirements a new tester is given), the list of test incidents, the database schema, everything it has done so
+   far, and the current page: screenshot, list of controls, visible text, messages and the API calls the page made.
+2. **Decides.** It picks the incident to use, then decides every action: which control to click, what to type
+   (including the resolution steps, written from the incident's failure and job log, or the KB recommendation when it
+   fits), and which read-only SQL checks to run.
+3. **Playwright executes** exactly those actions in Chrome and takes a screenshot after each turn. Playwright decides
+   nothing.
+4. **Verdict for every case, passed or failed:** pass, fail (with classification, root cause, draft defect and
+   database findings) or inconclusive (sent to a person). The reasoning, the resolution steps it chose, the evidence
+   and a full decision log are on the case page.
+5. **Independent integrity check (not AI):** every value the AI typed is compared with what the page shows and what
+   the database returned. If the application changed a value (a dropped backslash, `&` stored as `&amp;`) and the AI
+   still said pass, the check sends it back to the AI to re-examine before the verdict stands.
+6. **People decide:** a QA lead approves, edits or rejects every AI root cause before a defect is raised (Word/PDF
+   export stays locked until then), and decides every inconclusive case.
+
+```bash
+npm run test:agent                          # the 30 Incident Management "Must Do" cases on the release candidate
+AGENT_CASES=MST-13,MST-24 npm run test:agent  # selected cases (or AGENT_CASES=all, or a suite name)
+npm run test:agent:fixed                    # same on the corrected build
+```
+
+Settings: `AGENT_WORKERS` (default 4 parallel browsers), `AGENT_MAX_TURNS` (default 24 model turns per case).
+Every model call (prompt, screenshot fingerprint, raw output, the actions executed, tokens, cost) is saved to
+`qa/runs/<run>/agent/<case>.json`. The AI's database access is read-only (SQLite `readOnly` + `PRAGMA query_only`,
+single SELECT only); it changes data only through the application's UI, like a tester, in a disposable test database
+that is reset before every case.
+
+## Scripted run (`npm test`)
+
+The original mode, kept for fast regression and comparison:
 
 1. **AI writes the tests.** An LLM turned each of the 127 manual test cases (102 from the client's TS_REGRESSION.xlsx) into a Playwright test; an engineer reviewed them, and they live in `tests/specs`. New cases can be drafted with `npm run ai:draft`.
 2. **Playwright runs them** in Chrome, in parallel, with a screenshot after every UI step.
