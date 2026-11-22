@@ -163,6 +163,7 @@ While the suite was being written, it also caught bugs in this mock (not in the 
 
 ## Numbers you can quote
 
+- **AI-driven run, measured on a laptop (Gemini 3.5 Flash, 4 browsers), 30 Must Do cases:** release candidate 25 pass / 5 fail (MST-18, 20, 24, 25, 27, all planted product defects) / 0 inconclusive, 3 min 32 s, $1.73 ($4.21 at list price without the prompt cache), 24.1 s and $0.058 per case on average; corrected build 30/30 pass. Each run's totals are printed at the end and stored in `qa/runs/<id>/run.json` (`ai.agent`).
 - The LLM side is **measured** too once a provider is configured: `npm run metrics` reports failures analysed, tokens, cost, time per failure and the human review outcome.
 - The AI side is **measured**: run duration, per-test time, steps and screenshots come from `qa/runs/<id>/run.json`. The headline time is wall-clock on 4 parallel workers; the page also shows the back-to-back total. The mock answers faster than the real application will.
 - The manual side is **measured only after testers record timings** on the Manual Timing page. Until then, the comparison uses a clearly labelled 10-minute planning estimate per case.
