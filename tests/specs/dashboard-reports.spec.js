@@ -46,7 +46,7 @@ test.describe("Dashboard and reporting", () => {
   });
 
   test("QA-RPT-002 Excel export contains the visible rows", { tag: "@review" }, async ({ page, app, step }) => {
-    await step("Open Incident Management, Open tab", async () => { await app.open("#/incidents"); await page.getByTestId("tab-open").click(); });
+    await step("Open Incident Management, Open tab", async () => { await app.open("#/incidents"); await Promise.all([page.waitForResponse(x => new URL(x.url()).pathname === "/api/incidents" && x.request().method() === "GET"), page.getByTestId("tab-open").click()]); });
     await step("Click Excel and open the file", async () => {
       const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Excel" }).click()]);
       const xml = fs.readFileSync(await dl.path(), "utf8");

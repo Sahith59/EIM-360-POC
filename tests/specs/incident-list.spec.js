@@ -1,5 +1,6 @@
 // AI-generated from catalog cases QA-INC-* and QA-SYNC-* (Incident List and ServiceNow sync).
 const { test, expect } = require("../fixtures");
+const listLoaded = page => page.waitForResponse(r => /\/api\/incidents(\?|$)/.test(new URL(r.url()).pathname + new URL(r.url()).search.slice(0, 1)) && r.request().method() === "GET");
 const fs = require("fs");
 
 const entries = async page => Number((await page.getByTestId("pager-info").innerText()).match(/of (\d+) entries/)[1]);
@@ -48,9 +49,10 @@ test.describe("Incident List", () => {
   test("QA-INC-008 Sort by Critical Flag puts P1 first", async ({ page, app, step }) => {
     await step("Open Incident Management", () => app.open("#/incidents"));
     await step("Click the Critical Flag header until ascending", async () => {
-      await page.getByRole("columnheader", { name: "Critical Flag" }).click();
+      // wait for each re-sort to load before clicking again (robust to slow networks)
+      await Promise.all([listLoaded(page), page.getByRole("columnheader", { name: "Critical Flag" }).click()]);
       await expect(page).toHaveURL(/sort=critical/);
-      await page.getByRole("columnheader", { name: "Critical Flag" }).click();
+      await Promise.all([listLoaded(page), page.getByRole("columnheader", { name: "Critical Flag" }).click()]);
       await expect(page).toHaveURL(/sort=critical&dir=asc/);
     });
     await step("Check the first rows", async () => {
@@ -69,7 +71,7 @@ test.describe("Incident List", () => {
   test("QA-INC-010 CSV export matches the selected tab", async ({ page, app, step }) => {
     let lines;
     await step("Open Incident Management", () => app.open("#/incidents"));
-    await step("Select the Open tab", () => page.getByTestId("tab-open").click());
+    await step("Select the Open tab", () => Promise.all([listLoaded(page), page.getByTestId("tab-open").click()]));
     await step("Click CSV and open the file", async () => {
       const [dl] = await Promise.all([page.waitForEvent("download"), page.getByTestId("export-csv").click()]);
       lines = fs.readFileSync(await dl.path(), "utf8").trim().split(/\r?\n/);
