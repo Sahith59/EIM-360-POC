@@ -70,6 +70,12 @@ exports.test = base.test.extend({
         const els = await page.evaluate(() => [...document.querySelectorAll("button, a, [role=tab], input, select, textarea")].map(e => ({ tag: e.tagName.toLowerCase(), role: e.getAttribute("role") || (e.tagName === "A" ? "link" : e.tagName === "BUTTON" ? "button" : e.tagName.toLowerCase()), name: (e.getAttribute("aria-label") || e.innerText || e.getAttribute("placeholder") || "").trim().replace(/\s+/g, " ").slice(0, 80), testid: e.getAttribute("data-testid") })).filter(e => e.name || e.testid));
         await testInfo.attach("dom-elements", { body: JSON.stringify({ url: page.url(), elements: els }), contentType: "application/json" });
       } catch {}
+      // snapshot the SQLite database exactly as it was when the test failed, so the AI can query that state read-only
+      try {
+        const caseId = (testInfo.title.match(/^((?:QA-)?[A-Z]{2,5}-\d+)/) || [])[1] || `test-${testInfo.testId}`;
+        const file = path.join(__dirname, "..", "qa", "runs", process.env.QA_RUN_ID || "adhoc", "db", `${caseId}.sqlite`);
+        await fetch(appURL + "/api/test/db-snapshot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) });
+      } catch {}
     }
   },
 });

@@ -29,6 +29,12 @@ const FAILURE_MIN = has("D2") ? 5 : 10;
 const FAILURE_MAX = 500;
 
 let S = seed();
+// ---- SQLite system of record (node:sqlite is built into Node 22+) ----
+process.removeAllListeners("warning"); process.on("warning", w => { if (w.name !== "ExperimentalWarning") console.warn(w); });
+const DBM = require("./db");
+const DB_FILE = process.env.DB_FILE || (PORT === 4360 ? path.join(DATA, "eim360.sqlite") : path.join(require("os").tmpdir(), `eim360-${PORT}.sqlite`));
+const db = DBM.open(DB_FILE);
+DBM.sync(db, S);
 const activeKb = () => S.kb.filter(k => k.active);
 const ROLES = ["SWAT", "SME", "Manager", "Admin"];
 const USER_NAMES = { SWAT: "Kavya Menon", SME: "Nikhil Patel", Manager: "Jenna Harper", Admin: "Platform Admin" };
@@ -137,7 +143,7 @@ function loadRun(id) {
 
 // ---------------- http ----------------
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml", ".webm": "video/webm", ".zip": "application/zip" };
-const send = (res, code, body, type = "application/json") => { res.writeHead(code, { "Content-Type": type, "Cache-Control": "no-store" }); res.end(type === "application/json" ? JSON.stringify(body) : body); };
+const send = (res, code, body, type = "application/json") => { if (res.mutating && code < 400) DBM.sync(db, S); res.writeHead(code, { "Content-Type": type, "Cache-Control": "no-store" }); res.end(type === "application/json" ? JSON.stringify(body) : body); };
 const readBody = req => new Promise(ok => { let d = ""; req.on("data", c => d += c); req.on("end", () => { try { ok(d ? JSON.parse(d) : {}); } catch { ok({}); } }); });
 function serveFile(res, base, rel) {
   let dec; try { dec = decodeURIComponent(rel); } catch { return false; }
@@ -151,12 +157,13 @@ const server = http.createServer(async (req, res) => {
   const t0 = process.hrtime.bigint();
   const url = new URL(req.url, "http://localhost");
   const p = url.pathname;
+  res.mutating = req.method !== "GET" && p.startsWith("/api/") && !p.startsWith("/api/qa/");
   if (LATENCY && p.startsWith("/api/") && !p.startsWith("/api/qa/")) await new Promise(r => setTimeout(r, LATENCY));
   const role = ROLES.includes(req.headers["x-role"]) ? req.headers["x-role"] : "Manager"; // no role header = most restricted
   const deny = (msg = `The ${role} role cannot perform this action.`) => send(res, 403, { error: msg });
   try {
     // ---- meta ----
-    if (p === "/api/meta") return send(res, 200, { build: BUILD, env: "DEV", roles: ROLES, people: S.people, categories: CATEGORIES, failureMin: FAILURE_MIN, failureMax: FAILURE_MAX, permissions: perms(role), role });
+    if (p === "/api/meta") return send(res, 200, { build: BUILD, env: "DEV", database: { engine: "SQLite " + db.prepare("select sqlite_version() v").get().v, file: path.relative(ROOT, DB_FILE).startsWith("..") ? path.basename(DB_FILE) : path.relative(ROOT, DB_FILE) }, roles: ROLES, people: S.people, categories: CATEGORIES, failureMin: FAILURE_MIN, failureMax: FAILURE_MAX, permissions: perms(role), role });
     if (p === "/api/summary") return send(res, 200, summary());
 
     // ---- incidents ----
@@ -317,9 +324,9 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/interfaces") return send(res, 200, S.interfaces.map(i => ({ ...i, kbEntries: activeKb().filter(k => k.interfaceCode === i.code).length, activeIncidents: S.incidents.filter(x => x.interfaceCode === i.code && ACTIVE.includes(x.status)).length })));
     if (p === "/api/kb") return send(res, 200, (url.searchParams.get("all") ? S.kb : activeKb()).map(k => ({ ...k, interfaceDescription: iface(k.interfaceCode).description, smeOnshore: iface(k.interfaceCode).smeOnshore, smeOffshore: iface(k.interfaceCode).smeOffshore })));
     if (p === "/api/kb/recommend") { const k = activeKb().find(x => x.interfaceCode === url.searchParams.get("interface") && x.category === url.searchParams.get("category")); return send(res, 200, k ? { id: k.id, version: k.version, usage: k.usage, steps: k.steps } : null); }
-    if (p === "/api/backend/swat_kb") return send(res, 200, S.kb.map(k => ({ kb_id: k.id, kb_key: k.kbKey, interface_code: k.interfaceCode, issue_category: k.category, version: k.version, active_flag: k.active, eff_start: k.effStart, eff_end: k.effEnd, usage_count: k.usage, steps: k.steps.join(" | ") })));
-    if (p === "/api/backend/resolution_execution") return send(res, 200, S.exec);
-    if (p === "/api/backend/incident_task_event") return send(res, 200, S.events);
+    if (p === "/api/backend/swat_kb") return send(res, 200, DBM.read.swat_kb(db)); // read from SQLite
+    if (p === "/api/backend/resolution_execution") return send(res, 200, DBM.read.resolution_execution(db));
+    if (p === "/api/backend/incident_task_event") return send(res, 200, DBM.read.incident_task_event(db));
     let mi = p.match(/^\/api\/interfaces\/(\w+)$/);
     if (mi && req.method === "PUT") {
       if (!["SME", "Admin"].includes(role)) return deny("Only SME or Admin users can assign interface SMEs.");
@@ -353,10 +360,26 @@ const server = http.createServer(async (req, res) => {
       return res.end(body);
     }
     if (p === "/api/test/candidates") return send(res, 200, S.incidents.filter(i => ["Open", "In Progress"].includes(i.status)).map(i => ({ number: i.number, status: i.status, workedBy: i.workedBy, hasPrediction: !!i.aiPrediction, category: i.category, interfaceCode: i.interfaceCode, hasRec: !!activeKb().find(k => k.interfaceCode === i.interfaceCode && k.category === i.category), noRecCategory: CATEGORIES.find(c => c !== i.category && !activeKb().find(k => k.interfaceCode === i.interfaceCode && k.category === c)) || null }))); // non-production test hook
-    if (p === "/api/test/reset" && req.method === "POST") { S = seed(); return send(res, 200, { ok: true }); } // non-production test hook
+    if (p === "/api/test/reset" && req.method === "POST") { S = seed(); return send(res, 200, { ok: true }); }
+    if (p === "/api/test/db-snapshot" && req.method === "POST") { // non-production: copy the database as it is right now (used when a test fails)
+      const b = await readBody(req); const out = path.resolve(String(b.file || ""));
+      if (!out.startsWith(RUNS + path.sep) || !out.endsWith(".sqlite")) return send(res, 422, { error: "Snapshot path must be a .sqlite file inside qa/runs." });
+      fs.mkdirSync(path.dirname(out), { recursive: true }); try { fs.unlinkSync(out); } catch {}
+      db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`); return send(res, 200, { ok: true, file: out });
+    } // non-production test hook
 
     // ---- QA / AI test agent ----
     if (p === "/api/qa/runs") return send(res, 200, runsIndex());
+    const rpt = p.match(/^\/api\/qa\/runs\/([\w-]+)\/([\w-]+)\/report\.(docx|pdf)$/);
+    if (rpt) { // defect report export: only after a QA lead approved or edited the AI root cause
+      const r = loadRun(rpt[1]); const t = r && r.tests.find(x => x.caseId === rpt[2] && x.analysis);
+      if (!t) return send(res, 404, { error: "Failed test not found in this run." });
+      if (!t.rcaReview || t.rcaReview.decision === "Rejected") return send(res, 409, { error: "Approve or edit the root cause before exporting the defect report." });
+      const R = require("../qa/report"), m = R.model(r, t, t.rcaReview);
+      const buf = rpt[3] === "pdf" ? await R.pdf(m) : await R.docx(m);
+      res.writeHead(200, { "Content-Type": rpt[3] === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Content-Disposition": `attachment; filename="${t.caseId}_defect_report.${rpt[3]}"`, "Cache-Control": "no-store" });
+      return res.end(buf);
+    }
     m = p.match(/^\/api\/qa\/runs\/([\w-]+)$/);
     if (m) { const r = loadRun(m[1]); return r ? send(res, 200, r) : send(res, 404, { error: "Run not found" }); }
     if (p === "/api/qa/rca-review" && req.method === "POST") {
@@ -405,5 +428,5 @@ const server = http.createServer(async (req, res) => {
     send(res, 500, { error: `We couldn't complete this request. Please try again or contact support (reference ${ref}).` });
   }
 });
-server.listen(PORT, () => console.log(`EIM 360 POC (${BUILD.label}) running at http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`EIM 360 POC (${BUILD.label}) running at http://localhost:${PORT} · database: SQLite ${DB_FILE}`));
 module.exports = server;
