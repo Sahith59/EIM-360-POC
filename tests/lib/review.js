@@ -26,7 +26,7 @@ function review(page) {
     },
     // choosing a category reloads the KB recommendation; wait for it so later steps see the final state
     async category(decision, value) {
-      const rec = () => page.waitForResponse(r => r.url().includes("/api/kb/recommend"));
+      const rec = () => page.waitForResponse(r => r.url().includes("/api/kb/recommend"), { timeout: 5000 }).catch(() => null); // no refetch if the value did not change
       if (decision === "approve") await Promise.all([rec(), page.getByTestId("category-approve").check()]);
       else if (decision) await page.getByTestId(`category-${decision}`).check();
       if (value) await Promise.all([rec(), page.getByTestId("category-select").selectOption(value)]);

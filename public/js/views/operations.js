@@ -185,7 +185,7 @@ export async function data(view) {
   const q = (new URLSearchParams(location.hash.split("?")[1] || "").get("q") || "").trim();
   const shown = rows.filter(r => !q || Object.values(r).join(" ").toLowerCase().includes(q.toLowerCase())).slice(0, 200);
   const cols = rows[0] ? Object.keys(rows[0]) : [];
-  view.innerHTML = pageHead("Data Explorer", [["Home", "#/home"], ["Administration", "#/site"], ["Data Explorer", ""]], "Read-only view of the backend tables behind the incident review (non-production).") + `
+  view.innerHTML = pageHead("Data Explorer", [["Home", "#/home"], ["Administration", "#/site"], ["Data Explorer", ""]], "Read-only view of the SQLite backend tables behind the incident review (non-production).") + `
   <div class="card"><div class="tabs">${Object.entries(TABLES).map(([k, l]) => `<button class="tab ${k === t ? "active" : ""}" data-t="${k}" data-testid="table-${k}">${l}<span class="count">${k === t ? rows.length : ""}</span></button>`).join("")}</div>
   <div class="toolbar"><div class="search">${icon("search", 15)}<input class="input" id="q" placeholder="Filter rows" value="${esc(q)}" aria-label="Filter rows" data-testid="data-filter"></div><span class="meta-chip" data-testid="data-count"><b>${shown.length}</b> rows${shown.length === 200 ? " (first 200)" : ""}</span></div>
   <div class="table-wrap"><table class="tbl" data-testid="data-table"><thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>${shown.map(r => `<tr>${cols.map(c => `<td class="${typeof r[c] === "number" ? "num" : ""} small">${esc(r[c] === null ? "NULL" : r[c])}</td>`).join("")}</tr>`).join("") || `<tr><td><div class="empty">No rows.</div></td></tr>`}</tbody></table></div></div>`;

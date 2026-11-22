@@ -21,6 +21,27 @@ npm test                  # runs the 127-case suite (starts its own isolated app
 
 Then open **http://localhost:4360/#/qa/runs** to see the run.
 
+## Database (SQLite) and what the AI can see
+
+- **System of record:** the app writes every change through to a SQLite database (Node's built-in `node:sqlite`, no install) in one transaction before it answers. Tables: `interfaces`, `incidents`, `swat_kb` (SCD2 versions), `resolution_execution`, `incident_task_event`. The file is `data/eim360.sqlite` for `npm start` (re-created from fictional seed data at each start); each test worker uses its own file. Open it with any SQLite client (for example `sqlite3 data/eim360.sqlite ".tables"`).
+- **Data checks in the tests** (versions, active flags, usage counters, events) read these tables through the backend API, which queries SQLite.
+- **Snapshot at failure:** when a test fails, the database is copied as it was at that moment to `qa/runs/<run>/db/<case>.sqlite`.
+- **AI read access:** during triage the LLM gets the schema and can run up to 3 read-only SQL queries (`LLM_MAX_DB_QUERIES`) against that snapshot before it answers. The snapshot is opened read-only (SQLite `readOnly` + `PRAGMA query_only`), and only a single `SELECT`/`WITH` statement is accepted. The queries, results and the model's database finding are shown on the failure page and in the defect report.
+- **AI write access:** the only thing the AI can write is a draft note in its own sandbox table, `ai_triage_notes` in `data/ai-notes.sqlite`. It is insert-only, never touches application data, and can be deleted at any time.
+- **Audit trail:** every AI call (prompt, screenshot fingerprint, SQL queries and results, raw model output, tokens, cost) is saved to `qa/runs/<run>/llm/<case>.json` and linked from the failure page.
+
+## Defect reports (Word and PDF)
+
+After a QA lead approves or edits the AI root cause, the failure page offers the defect report as `.md`, **Word** and **PDF** (`/api/qa/runs/<run>/<case>/report.docx|pdf`). It contains the steps, expected vs. actual, the reviewed root cause (and the AI draft if edited), the database evidence, recommended actions, the failure screenshot and the AI provenance. Run `npm install` once after pulling, for the Word generator.
+
+## Demo switches
+
+| Command | What it shows |
+|---|---|
+| `npm test` | Release candidate: 13 failures from 4 planted issues |
+| `BUILD=fixed EXTRA_DEFECTS=N5 npm test` | A defect with no analyst note anywhere (ampersands saved as `&amp;`), to show the AI diagnosing something it has never seen |
+| `LATENCY_MS=300 npm test` | Adds 300 ms to every API call to simulate a production network and database |
+
 ## Connect an LLM (Gemini or any other provider)
 
 Without a key everything still runs; triage then uses rules and analyst notes only, and the run page says so.

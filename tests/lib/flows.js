@@ -244,7 +244,7 @@ exports.noDuplicates = async ctx => {
   const c = await completeReview(ctx, "kbPred");
   await ctx.step("Save the resolution steps, retrying the submission", async () => {
     await page.getByTestId("approve-one-time").dblclick();
-    await R.toast("Approved one time");
+    await expect(page.getByTestId("toast").filter({ hasText: "Approved one time" })).toHaveCount(1); // the second click may also show a "read-only" toast
     const retry = await app.api(`/api/incidents/${c.number}/review`, { method: "POST", body: { action: "one-time" } });
     expect(retry.status, "a repeated submission is refused").toBe(409);
   });
