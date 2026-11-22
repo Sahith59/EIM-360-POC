@@ -33,8 +33,8 @@ How to work:
 - Follow the intent of the manual test case. If the UI wording differs slightly from the test case but the intent is
   clearly achievable, carry on and mention it in "observations"; that alone is not a failure.
 - Prefer few turns: you may return up to ${MAX_ACTIONS} actions per turn when you already know the refs of the controls.
-  Refs come from the current page snapshot only and change after every turn; after an action that changes the page
-  (for example adding a step row or navigating), wait for the next snapshot before using new controls.
+  Refs come from the current page snapshot and stay valid for the whole turn, even if the page re-renders. Controls that
+  do not exist yet (for example a step row you are about to add) only get a ref in the next snapshot.
 - Verify the expected result with evidence: what the page shows after the action AND, when the case is about saving,
   persistence, counters, versions or synchronisation, what the database actually stored (read-only SQL). Check the
   state before and after when the case is about a change (for example a counter).
@@ -99,6 +99,7 @@ async function snapshot(page) {
       const radio = e.type === "radio" || e.type === "checkbox";
       if (!(visible(e) || (radio && e.closest("label") && visible(e.closest("label"))))) continue;
       if (e.type === "hidden") continue;
+      if (e.closest("nav, aside, .sidebar, #sidebar")) continue; // app menu: routes are listed in the guide
       const ref = "e" + (++n); e.setAttribute("data-ai-ref", ref);
       const tag = e.tagName.toLowerCase();
       const o = { ref, kind: tag === "a" ? "link" : tag === "input" ? (e.type || "text") : tag, label: labelOf(e).trim().replace(/\s+/g, " ").slice(0, 70) };
@@ -108,6 +109,9 @@ async function snapshot(page) {
       if (tag === "input" || tag === "textarea") { if (!radio) o.value = e.value.slice(0, 300); else o.checked = e.checked; if (e.name && radio) o.group = e.name; }
       if (tag === "select") { o.value = e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : ""; o.options = [...e.options].map(x => x.text).slice(0, 25); }
       if (e.disabled) o.disabled = true;
+      // stable selector so a ref still works after the page re-renders within the same turn
+      const tid = e.dataset.testid;
+      o.sel = tid && document.querySelectorAll(`[data-testid="${CSS.escape(tid)}"]`).length === 1 ? `[data-testid="${CSS.escape(tid)}"]` : e.id && document.querySelectorAll("#" + CSS.escape(e.id)).length === 1 ? "#" + CSS.escape(e.id) : `[data-ai-ref="${ref}"]`;
       out.push(o);
       if (n >= 160) break;
     }
@@ -176,7 +180,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
   { const ro = dbtool.openReadOnly(dbFile); if (ro) { schemaTxt = dbtool.schema(ro); ro.close(); } }
 
   const history = [], audit = [], queries = [], turnsLog = [];
-  let usage = { input: 0, output: 0 }, cost = 0, costKnown = true, llmMs = 0, calls = 0, actionsRun = 0, final = null, lastShot = null;
+  let usage = { input: 0, output: 0, cached: 0 }, cost = 0, costKnown = true, llmMs = 0, calls = 0, actionsRun = 0, final = null, lastShot = null;
   let pendingQueryResults = [];
 
   for (let turn = 1; turn <= MAX_TURNS && !final; turn++) {
@@ -188,14 +192,15 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     lastShot = shot;
     const remaining = MAX_TURNS - turn;
     const prompt = [
+      // static parts first (identical across turns and cases) so the provider's prompt cache can reuse them
+      `APPLICATION GUIDE:\n${GUIDE}`,
+      ``,
+      `TEST DATA (open incidents after the reset):\n${testData}`,
+      ``,
       `TEST CASE ${caseDef.caseId}${caseDef.clientRef ? ` (client ref ${caseDef.clientRef}, ${caseDef.suite})` : ""}: ${caseDef.title}`,
       `Role: ${caseDef.role || "SWAT"}. Priority: ${caseDef.priority || "-"}.${caseDef.preconditions ? ` Preconditions: ${caseDef.preconditions}` : ""}`,
       `Manual steps:\n${(caseDef.steps || []).map((s, k) => `  ${k + 1}. ${s}`).join("\n")}`,
       `Expected result: ${caseDef.expected}`,
-      ``,
-      `APPLICATION GUIDE:\n${GUIDE}`,
-      ``,
-      `TEST DATA (open incidents after the reset):\n${testData}`,
       ``,
       `DATABASE SCHEMA (read-only access via the "query" action; at most 25 rows are returned):\n${schemaTxt}`,
       ``,
@@ -216,7 +221,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     let r;
     try { r = await llm.complete({ system: SYSTEM, prompt, images: shot ? [{ mime: "image/jpeg", base64: shot.toString("base64") }] : [], maxTokens: 3000 }); }
     catch (err) { final = { verdict: "inconclusive", error: true, summary: `The AI agent stopped: the model call failed (${clip(err.message, 200)}).`, confidence: 0 }; break; }
-    calls++; usage.input += r.usage.input; usage.output += r.usage.output; llmMs += r.latencyMs; if (r.costUsd == null) costKnown = false; else cost += r.costUsd;
+    calls++; usage.input += r.usage.input; usage.output += r.usage.output; usage.cached += r.usage.cached || 0; llmMs += r.latencyMs; if (r.costUsd == null) costKnown = false; else cost += r.costUsd;
     const j = r.json || {};
     const acts = (Array.isArray(j.actions) ? j.actions : j.type ? [j] : []).slice(0, MAX_ACTIONS);
     const rec = { turn, thought: clip(j.thought, 600), step: clip(j.step || "Continue the test", 140), actions: [], ms: r.latencyMs, tokens: r.usage.input + r.usage.output,
@@ -234,8 +239,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
       for (const a of uiActs) {
         const type = String(a.type || "").toLowerCase();
         const res = { type, ref: a.ref, value: a.text ?? a.option ?? a.route ?? a.key ?? a.role };
-        const loc = a.ref ? page.locator(`[data-ai-ref="${String(a.ref).replace(/"/g, "")}"]`) : null;
         const target = a.ref ? (obs.elements.find(e => e.ref === a.ref) || {}) : {};
+        const loc = a.ref ? page.locator(target.sel || `[data-ai-ref="${String(a.ref).replace(/"/g, "")}"]`) : null;
         res.target = target.label ? `${target.kind} "${target.label}"${target.testid ? ` (${target.testid})` : ""}` : a.ref || "";
         try {
           if (["click", "fill", "select", "check"].includes(type) && !(await loc.count())) throw new Error(`ref ${a.ref} is not on the current page (refs change every turn)`);

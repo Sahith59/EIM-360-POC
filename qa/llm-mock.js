@@ -5,7 +5,7 @@ module.exports = function mock(prompt) {
     const id = (prompt.match(/Test case (\S+)/) || [])[1] || "CASE-0";
     return { spec: `// mock draft\nconst { test, expect } = require("../fixtures");\ntest("${id} mock draft @review", async ({ page }) => {\n  await page.goto("/");\n  await expect(page).toHaveTitle(/EIM 360/);\n});\n`, notes: "mock" };
   }
-  if (/^TEST CASE /.test(prompt) && /CURRENT PAGE \(turn (\d+)/.test(prompt)) {
+  if (/\nTEST CASE /.test(prompt) && /CURRENT PAGE \(turn (\d+)/.test(prompt)) {
     // AI agent loop: open the first incident, add a step, run one SQL check, then finish
     const turn = Number(prompt.match(/CURRENT PAGE \(turn (\d+)/)[1]);
     const inc = (prompt.match(/TEST DATA[^\n]*\n(\S+):/) || [])[1];

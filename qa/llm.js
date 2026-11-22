@@ -36,10 +36,12 @@ const PRICES = [
   [/^claude-opus-5/, 4, 20], [/^claude-sonnet-5/, 2, 10], [/^claude-haiku-5/, 0.1, 0.5],
   [/^gpt-6\.2-sol/, 2, 10],
 ];
+// Gemini bills input tokens served from its implicit prompt cache at 10% of the input price.
 function costUsd(model, usage) {
   const p = PRICES.find(([re]) => re.test(model || ""));
   if (!p || !usage) return null;
-  return (usage.input * p[1] + usage.output * p[2]) / 1e6;
+  const cached = /^gemini/.test(model || "") ? Math.min(usage.cached || 0, usage.input) : 0;
+  return ((usage.input - cached) * p[1] + cached * p[1] * 0.1 + usage.output * p[2]) / 1e6;
 }
 
 const DEFAULTS = { gemini: "gemini-3.5-flash", anthropic: "claude-sonnet-5-5", openai: "gpt-6.2-sol", azure: null, local: "llama3.1" };
@@ -98,7 +100,7 @@ async function complete({ system, prompt, images = [], json = true, maxTokens = 
         const cand = (r.candidates || [])[0];
         text = cand && cand.content ? (cand.content.parts || []).map(p => p.text || "").join("") : "";
         if (!text) throw new Error(`empty response${cand && cand.finishReason ? ` (${cand.finishReason})` : r.promptFeedback ? ` (${JSON.stringify(r.promptFeedback).slice(0, 80)})` : ""}`);
-        const u = r.usageMetadata || {}; usage = { input: u.promptTokenCount || 0, output: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0) };
+        const u = r.usageMetadata || {}; usage = { input: u.promptTokenCount || 0, output: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0), cached: u.cachedContentTokenCount || 0 };
       } else if (provider === "anthropic") {
         const base = env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";
         const content = [...images.map(i => ({ type: "image", source: { type: "base64", media_type: i.mime, data: i.base64 } })), { type: "text", text: prompt + (json ? "\nReturn one JSON object only." : "") }];

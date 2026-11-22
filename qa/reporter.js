@@ -93,7 +93,7 @@ class EimReporter {
       ai.agent = { provider: G[0].provider, model: G[0].model, cases: G.length,
         verdicts: { pass: G.filter(g => g.verdict === "pass").length, fail: G.filter(g => g.verdict === "fail").length, inconclusive: G.filter(g => g.verdict === "inconclusive").length },
         calls: gs(g => g.calls), turns: gs(g => g.turns), actions: gs(g => g.actions), queries: gs(g => g.queries.length),
-        inputTokens: gs(g => g.usage.input), outputTokens: gs(g => g.usage.output), costUsd: G.every(g => g.costUsd != null) ? Number(gs(g => g.costUsd).toFixed(4)) : null,
+        inputTokens: gs(g => g.usage.input), cachedTokens: gs(g => g.usage.cached), outputTokens: gs(g => g.usage.output), costUsd: G.every(g => g.costUsd != null) ? Number(gs(g => g.costUsd).toFixed(4)) : null,
         llmMs: gs(g => g.llmMs), caseMs: gs(g => g.wallMs), avgCaseMs: Math.round(gs(g => g.wallMs) / G.length), avgLlmMsPerCase: Math.round(gs(g => g.llmMs) / G.length),
         avgCostPerCase: G.every(g => g.costUsd != null) ? Number((gs(g => g.costUsd) / G.length).toFixed(4)) : null, harnessErrors: G.filter(g => g.harnessError).length };
     }
