@@ -142,14 +142,15 @@ function loadRun(id) {
 }
 
 // ---------------- http ----------------
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml", ".webm": "video/webm", ".zip": "application/zip" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml", ".webm": "video/webm", ".zip": "application/zip", ".jpg": "image/jpeg", ".jpeg": "image/jpeg" };
 const send = (res, code, body, type = "application/json") => { if (res.mutating && code < 400) DBM.sync(db, S); res.writeHead(code, { "Content-Type": type, "Cache-Control": "no-store" }); res.end(type === "application/json" ? JSON.stringify(body) : body); };
 const readBody = req => new Promise(ok => { let d = ""; req.on("data", c => d += c); req.on("end", () => { try { ok(d ? JSON.parse(d) : {}); } catch { ok({}); } }); });
 function serveFile(res, base, rel) {
   let dec; try { dec = decodeURIComponent(rel); } catch { return false; }
   const file = path.normalize(path.join(base, dec));
   if (!file.startsWith(base) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
-  res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
+  // app code must never be served stale from the browser cache (a demo after a git pull would show the old page)
+  res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream", "Cache-Control": /\.(js|css|html|json)$/.test(file) ? "no-cache" : "max-age=300" });
   fs.createReadStream(file).pipe(res); return true;
 }
 

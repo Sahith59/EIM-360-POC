@@ -171,6 +171,9 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
   const cfg = llm.config();
   if (!cfg.ready) throw new Error(`AI agent needs an LLM: ${cfg.reason}. Set LLM_PROVIDER and its key in .env.`);
   const t0 = Date.now();
+  // everything the trace page shows is written here: one JPEG per turn (exactly what the model saw) + <case>.json
+  const traceDir = path.join(ROOT, "qa", "runs", process.env.QA_RUN_ID || "adhoc", "agent", caseDef.caseId);
+  try { fs.mkdirSync(traceDir, { recursive: true }); } catch {}
   const runId = process.env.QA_RUN_ID || "adhoc";
   const port = new URL(app.url).port;
   const dbFile = process.env.AGENT_DB_FILE || path.join(os.tmpdir(), `eim360-${port}.sqlite`);
@@ -218,7 +221,10 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     const newToasts = await page.evaluate(() => { const t = window.__aiToasts || []; window.__aiToasts = []; return t; }).catch(() => []);
     toasts.push(...newToasts);
     const newApi = api.splice(0);
+    const turnStartMs = Date.now() - t0;
     const shot = await page.screenshot({ type: "jpeg", quality: 60 }).catch(() => null);
+    let shotFile = null;
+    if (shot) { shotFile = `${caseDef.caseId}/turn-${String(turn).padStart(2, "0")}.jpg`; try { fs.writeFileSync(path.join(traceDir, path.basename(shotFile)), shot); } catch { shotFile = null; } }
     lastShot = shot;
     seen.push({ where: `page ${obs.url}`, text: obs.text }, ...obs.elements.filter(e => e.value).map(e => ({ where: `field "${e.label}"`, text: e.value })));
     const remaining = MAX_TURNS - turn;
@@ -251,7 +257,9 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     pendingQueryResults = [];
 
     let r, lastErr;
+    let attemptsUsed = 0;
     for (let attempt = 1; attempt <= 3 && !r; attempt++) {
+      attemptsUsed = attempt;
       try { r = await llm.complete({ system: SYSTEM, prompt: attempt === 1 ? prompt : prompt + `\n\nYour previous reply could not be used (${clip(lastErr.message, 120)}). Reply again with ONE valid JSON object; inside JSON strings write a backslash as \\\\ and a double quote as \\".`, images: shot ? [{ mime: "image/jpeg", base64: shot.toString("base64") }] : [], maxTokens: 3000 }); }
       catch (err) { lastErr = err; if (err.status && err.status < 500 && err.status !== 429) break; }
     }
@@ -261,7 +269,9 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     const acts = (Array.isArray(j.actions) ? j.actions : j.type ? [j] : []).slice(0, MAX_ACTIONS);
     const rec = { turn, thought: clip(j.thought, 600), step: clip(j.step || "Continue the test", 140), actions: [], ms: r.latencyMs, tokens: r.usage.input + r.usage.output,
       screenshotSha256: shot ? crypto.createHash("sha256").update(shot).digest("hex") : null };
-    audit.push({ turn, prompt, response: r.text, usage: r.usage, latencyMs: r.latencyMs });
+    audit.push({ turn, startedAtMs: turnStartMs, prompt, response: r.text, parsed: j, usage: r.usage, latencyMs: r.latencyMs, costUsd: r.costUsd, attempts: attemptsUsed,
+      page: { url: obs.url, heading: obs.title, role: obs.role, controls: obs.elements.length, fieldErrors: obs.fieldErrors }, screenshot: shotFile,
+      messages: newToasts, apiCalls: newApi, sqlResults: [] });
 
     const fin = acts.find(a => String(a.type).toLowerCase() === "finish");
     if (fin && String(fin.verdict).toLowerCase() === "pass" && !challenged) {
@@ -291,6 +301,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
         const target = a.ref ? (obs.elements.find(e => e.ref === a.ref) || {}) : {};
         const loc = a.ref ? page.locator(target.sel || `[data-ai-ref="${String(a.ref).replace(/"/g, "")}"]`) : null;
         res.target = target.label ? `${target.kind} "${target.label}"${target.testid ? ` (${target.testid})` : ""}` : a.ref || "";
+        const a0 = Date.now();
         try {
           if (["click", "fill", "select", "check"].includes(type) && !(await loc.count())) throw new Error(`ref ${a.ref} is not on the current page (refs change every turn)`);
           if (type === "click") await loc.click({ timeout: 5000 });
@@ -305,6 +316,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
           res.ok = true; actionsRun++;
         } catch (err) { res.ok = false; res.error = clip(String(err.message).split("\n")[0], 200); }
         await settle();
+        res.ms = Date.now() - a0;
         results.push(res);
         if (!res.ok) break; // the page may not be what the model expected; let it look again
       }
@@ -315,6 +327,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
       const out = ro ? dbtool.query(ro, q.sql) : { error: "database not available" };
       try { ro && ro.close(); } catch {}
       queries.push({ turn, sql: String(q.sql || ""), why: String(q.why || ""), rowCount: out.rowCount ?? null, error: out.error || null, sample: (out.rows || []).slice(0, 8) });
+      audit[audit.length - 1].sqlResults.push({ sql: String(q.sql || ""), why: String(q.why || ""), rowCount: out.rowCount ?? null, error: out.error || null, rows: out.rows || [], columns: out.columns || (out.rows && out.rows[0] ? Object.keys(out.rows[0]) : []) });
       (out.rows || []).forEach(row => Object.values(row).forEach(v => typeof v === "string" && seen.push({ where: "SQL result", text: v })));
       pendingQueryResults.push(`SQL: ${q.sql}\n  -> ${out.error ? "ERROR " + out.error : `${out.rowCount} row(s): ${clip(JSON.stringify(out.rows), 2500)}`}`);
       results.push({ type: "query", value: clip(q.sql, 300), why: q.why, ok: !out.error, rows: out.rowCount ?? null, error: out.error || undefined });
@@ -346,7 +359,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
   };
   try {
     const dir = path.join(ROOT, "qa", "runs", runId, "agent"); fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `${caseDef.caseId}.json`), JSON.stringify({ caseId: caseDef.caseId, at: new Date().toISOString(), provider: cfg.provider, model: cfg.model, system: SYSTEM, database: { access: "read-only", file: path.basename(dbFile) }, result: { ...result, timeline: undefined }, turns: audit.map((a, k) => ({ ...a, executed: (turnsLog[k] || {}).actions })) }, null, 2));
+    fs.writeFileSync(path.join(dir, `${caseDef.caseId}.json`), JSON.stringify({ traceVersion: 2, caseId: caseDef.caseId, at: new Date().toISOString(), provider: cfg.provider, model: cfg.model, system: SYSTEM, database: { access: "read-only", file: path.basename(dbFile) },
+      context: { testCase: caseDef, requiredIncident: process.env.AGENT_INCIDENT || null, appGuide: GUIDE, testData: candidates, schema: schemaTxt, maxTurns: MAX_TURNS, workers: Number(process.env.AGENT_WORKERS || 4) }, result: { ...result, timeline: undefined }, turns: audit.map((a, k) => ({ ...a, executed: (turnsLog[k] || {}).actions })) }, null, 2));
   } catch { /* audit is best-effort */ }
   await testInfo.attach("ai-agent", { body: JSON.stringify(result), contentType: "application/json" });
   return result;

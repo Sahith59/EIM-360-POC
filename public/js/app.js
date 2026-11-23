@@ -2,6 +2,7 @@ import { icon } from "./icons.js";
 import { api, state, store, esc, initials, $, $$ } from "./core.js";
 import * as inc from "./views/incidents.js";
 import * as ops from "./views/operations.js";
+import * as tr from "./views/trace.js";
 import * as qa from "./views/qa.js";
 
 const NAV = [
@@ -17,7 +18,7 @@ const ROUTES = [
   [/^#\/home$/, ops.home], [/^#\/jobhub(?:\?.*)?$/, ops.jobhub], [/^#\/dashboard(?:\?.*)?$/, ops.dashboard], [/^#\/reporting$/, ops.reporting],
   [/^#\/interfaces$/, ops.interfaces], [/^#\/interfaces\/edit\/(\w+)$/, ops.interfaceEdit], [/^#\/data(?:\?.*)?$/, ops.data], [/^#\/kb$/, ops.kb], [/^#\/ifg$/, ops.ifg], [/^#\/site$/, ops.site],
   [/^#\/incidents(?:\?.*)?$/, inc.list], [/^#\/incidents\/(edit|view)\/(INCTSK\d+)$/, inc.detail], [/^#\/resolution-hub$/, inc.hub],
-  [/^#\/qa\/runs$/, qa.runs], [/^#\/qa\/runs\/([\w-]+)(?:\?.*)?$/, qa.run], [/^#\/qa\/runs\/([\w-]+)\/(\d+)$/, qa.test],
+  [/^#\/qa\/runs$/, qa.runs], [/^#\/qa\/runs\/([\w-]+)(?:\?.*)?$/, qa.run], [/^#\/qa\/runs\/([\w-]+)\/(\d+)$/, qa.test], [/^#\/qa\/runs\/([\w-]+)\/(\d+)\/trace$/, tr.trace],
   [/^#\/qa\/cases$/, qa.cases], [/^#\/qa\/timing$/, qa.timing], [/^#\/qa\/compare(\?.*)?$/, qa.compare],
 ];
 
