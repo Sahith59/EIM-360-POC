@@ -135,6 +135,8 @@ function loadRun(id) {
   if (!run) return null;
   const approvals = readJson(path.join(DATA, "test-approvals.json"), {});
   const rca = readJson(path.join(DATA, "rca-reviews.json"), {});
+  // drop links to artifacts that are not on disk (e.g. a Playwright trace that was not kept), so no button downloads a broken file
+  run.tests.forEach(t => { const A = t.artifacts; if (A) for (const k of Object.keys(A)) { const v = A[k]; if (typeof v === "string" && !fs.existsSync(path.join(RUNS, id, v))) A[k] = null; else if (Array.isArray(v)) A[k] = v.filter(f => typeof f !== "string" || fs.existsSync(path.join(RUNS, id, f))); } });
   run.tests.forEach(t => { if (t.analysis && rca[`${id}/${t.caseId}`]) t.rcaReview = rca[`${id}/${t.caseId}`]; });
   run.tests.forEach(t => { const a = approvals[t.caseId]; if (a) { t.approval = a; if (t.status === "review" && a.decision === "Approved") { t.status = "passed"; t.approvedReview = true; } } });
   const T = run.tests; run.totals = { ...run.totals, passed: T.filter(t => t.status === "passed").length, failed: T.filter(t => t.status === "failed").length, review: T.filter(t => t.status === "review").length };
@@ -419,7 +421,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- static ----
-    if (p.startsWith("/qa-artifacts/") && serveFile(res, RUNS, p.slice("/qa-artifacts/".length))) return;
+    if (p.startsWith("/qa-artifacts/")) return serveFile(res, RUNS, p.slice("/qa-artifacts/".length)) || send(res, 404, { error: "Not found" });
     if (p.startsWith("/api/")) return send(res, 404, { error: "Not found" });
     if (serveFile(res, PUB, p === "/" ? "index.html" : p.slice(1))) return;
     serveFile(res, PUB, "index.html") || send(res, 404, { error: "Not found" }); // SPA fallback

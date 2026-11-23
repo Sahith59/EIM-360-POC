@@ -37,10 +37,18 @@ function msgsFromPrompt(p) { const m = p.match(/Messages shown since the last tu
 const block = (title, body, { open = false, id = "", note = "" } = {}) => `<details class="tr-block" ${open ? "open" : ""} ${id ? `data-testid="${id}"` : ""}><summary><b>${title}</b>${note ? ` <span class="muted small">${note}</span>` : ""}</summary><div class="tr-block-body">${body}</div></details>`;
 const pre = t => `<pre class="tr-pre">${esc(t)}</pre>`;
 const kv = rows => `<table class="tbl tr-kv"><tbody>${rows.filter(r => r).map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join("")}</tbody></table>`;
-function rowsTable(rows, cols) {
+// a database cell: NULL in grey, empty string spelled out, and (optionally) a value the round-trip check proved was altered in red
+const cellV = (v, mark) => {
+  if (v == null) return '<span class="muted">NULL</span>';
+  const t = typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (t === "") return '<span class="muted">(empty)</span>';
+  const m = mark && mark(t);
+  return m ? `<span class="tr-bad-val">${raw(t)}</span><div class="small" style="color:var(--bad)">altered on save. Gemini typed: <span class="mono">${raw(m)}</span></div>` : raw(t);
+};
+function rowsTable(rows, cols, mark) {
   if (!rows || !rows.length) return `<div class="small muted">0 rows</div>`;
   cols = cols && cols.length ? cols : Object.keys(rows[0]);
-  return `<div class="table-wrap"><table class="tbl tr-rows"><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td class="mono">${esc(r[c] == null ? "NULL" : typeof r[c] === "object" ? JSON.stringify(r[c]) : String(r[c]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="tbl tr-rows"><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td class="mono${/(^id$|_id$|_at$|^eff_|count|version|^ts$)/i.test(c) ? " tr-nw" : ""}">${cellV(r[c], mark)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
 export async function trace(view, runId, idx) {
@@ -112,7 +120,7 @@ export async function trace(view, runId, idx) {
     </div>
     <div class="tr-bar" title="Where the time went"><span style="width:${(g.llmMs / g.wallMs * 100).toFixed(1)}%" class="tr-bar-ai"></span><span style="width:${(browserMs / g.wallMs * 100).toFixed(1)}%" class="tr-bar-pw"></span></div>
     <div class="small muted" style="margin-top:4px"><span class="tr-dot tr-bar-ai"></span>${esc(AI)} thinking ${Math.round(g.llmMs / g.wallMs * 100)}% · <span class="tr-dot tr-bar-pw"></span>Playwright, page loads and checks ${Math.round(browserMs / g.wallMs * 100)}%</div>
-    <nav class="tr-nav small"><a href="#tr-context" data-jump>1 · What the AI was given</a><a href="#tr-steps" data-jump>2 · Every decision and action (${L.length})</a><a href="#tr-db" data-jump>3 · Database before and after</a><a href="#tr-verdict" data-jump>4 · Verdict, checks and review</a><a href="#tr-cost" data-jump>5 · Cost and time per call</a></nav>
+    <nav class="tr-nav small"><a href="#tr-context" data-jump>1 · What the AI was given</a><a href="#tr-steps" data-jump>2 · Every decision and action (${L.length})</a><a href="#tr-db" data-jump>3 · Database before and after</a><a href="#tr-verdict" data-jump>4 · Verdict, checks and review</a><a href="#tr-cost" data-jump>5 · Cost and time per AI step</a></nav>
   </div></div>`;
 
   // 1 · context
@@ -188,13 +196,13 @@ export async function trace(view, runId, idx) {
         <p style="margin-top:0">${esc(g.summary)}</p>
         ${kv([["Test data used", esc(g.testData)], g.resolutionSteps.length ? ["Resolution steps", `<ol style="margin:0;padding-left:18px">${g.resolutionSteps.map(s => `<li class="mono">${esc(s)}</li>`).join("")}</ol>${g.resolutionRationale ? `<div class="small muted">Why: ${esc(g.resolutionRationale)}</div>` : ""}`] : null,
           ["Expected", esc(g.expected)], ["Observed", esc(g.actual)], ["Evidence", `<ul style="margin:0;padding-left:18px">${g.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>`], g.observations.length ? ["Observations", `<ul style="margin:0;padding-left:18px">${g.observations.map(e => `<li>${esc(e)}</li>`).join("")}</ul>`] : null])}
-        ${g.verdict === "fail" ? `<div class="tr-lbl" style="margin-top:12px">Root cause (AI draft)</div>${kv([["Classification", esc(g.classification || "")], ["Root cause", esc(g.rootCause)], ["Component", esc(g.component)], g.narrative ? ["Narrative", esc(g.narrative)] : null, ["Database findings", esc(g.dbFindings)], ["Draft defect", `${esc(g.defectTitle)} · <b>${esc(g.severity)}</b>`], ["Steps to reproduce", `<ol style="margin:0;padding-left:18px">${g.reproSteps.map(s => `<li>${esc(String(s).replace(/^\s*\d+[.)]\s*/, ""))}</li>`).join("")}</ol>`], ["Suggested next steps", `<ol style="margin:0;padding-left:18px">${g.nextSteps.map(s => `<li>${esc(String(s).replace(/^\s*\d+[.)]\s*/, ""))}</li>`).join("")}</ol>`]])}` : ""}
+        ${g.verdict === "fail" ? `<div class="tr-lbl" style="margin-top:12px">Root cause (AI draft)</div>${kv([["Classification", esc(g.classification || "")], ["Root cause", esc(g.rootCause)], ["Component", esc(g.component) + (RT.some(r => r.sent && r.sent.status === "exact" && r.stored && r.stored.status === "changed") ? `<div class="small" style="margin-top:4px;color:var(--bad)"><b>Code check narrows this to: backend save logic.</b> The page sent the value unchanged; the database stored it altered (see the round-trip table below).</div>` : RT.some(r => r.sent && r.sent.status === "changed") ? `<div class="small" style="margin-top:4px;color:var(--bad)"><b>Code check narrows this to: the page (front end).</b> The value was already altered before it was sent.</div>` : "")], g.narrative ? ["Narrative", esc(g.narrative)] : null, ["Database findings", esc(g.dbFindings)], ["Draft defect", `${esc(g.defectTitle)} · <b>${esc(g.severity)}</b>`], ["Steps to reproduce", `<ol style="margin:0;padding-left:18px">${g.reproSteps.map(s => `<li>${esc(String(s).replace(/^\s*\d+[.)]\s*/, ""))}</li>`).join("")}</ol>`], ["Suggested next steps", `<ol style="margin:0;padding-left:18px">${g.nextSteps.map(s => `<li>${esc(String(s).replace(/^\s*\d+[.)]\s*/, ""))}</li>`).join("")}</ol>`]])}` : ""}
       </div></div>
       <div class="stack">
         <div class="card" data-testid="trace-integrity"><div class="card-head"><h2>${icon(ic.issues.length ? "alert-triangle" : "check-circle-2", 17)}Independent integrity check</h2><span class="small muted">code, not AI</span></div><div class="card-body">
           <p class="small" style="margin-top:0">Every value the AI typed is followed through the system: what the page sent to the backend, what the database stored and what the page then showed.</p>
           ${rtTable}
-          ${ic.checked ? (ic.issues.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Typed by the AI</th><th>Found</th><th>Where</th></tr></thead><tbody>${ic.issues.map(z => `<tr><td class="mono">${raw(z.typed)}</td><td class="mono" style="color:var(--bad)">${raw(z.found)}</td><td class="small">${esc(z.where)}</td></tr>`).join("")}</tbody></table></div><p class="small" style="margin-bottom:0">${g.revisedAfterCheck ? (g.verdict !== "pass" ? "Gemini first said PASS; this check sent it back and Gemini changed its verdict." : "This check sent Gemini back to look again; it re-checked and kept PASS.") : "Consistent with the AI's verdict."}</p>` : `<p class="small" style="margin:0">${ic.checked} typed value${ic.checked === 1 ? "" : "s"} checked: unchanged wherever it was found (see the table above for sent, stored and shown).</p>`) : `<p class="small muted" style="margin:0">The AI typed no values in this case.</p>`}
+          ${ic.checked ? (ic.issues.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Typed by Gemini</th><th>First place it was seen altered</th><th>Where</th></tr></thead><tbody>${ic.issues.map(z => `<tr><td class="mono">${raw(z.typed)}</td><td class="mono" style="color:var(--bad)">${raw(z.found)}</td><td class="small">${esc(z.where)}</td></tr>`).join("")}</tbody></table></div><p class="small" style="margin-bottom:0">${g.revisedAfterCheck ? (g.verdict !== "pass" ? "Gemini first said PASS; this check sent it back and Gemini changed its verdict." : "This check sent Gemini back to look again; it re-checked and kept PASS.") : "Consistent with the AI's verdict."}</p>` : `<p class="small" style="margin:0">${ic.checked} typed value${ic.checked === 1 ? "" : "s"} checked: unchanged wherever it was found (see the table above for sent, stored and shown).</p>`) : `<p class="small muted" style="margin:0">The AI typed no values in this case.</p>`}
         </div></div>
         <div class="card"><div class="card-head"><h2>${icon("user-check", 17)}Human review</h2></div><div class="card-body small">
           ${g.verdict === "fail" ? (rv ? `<b>${esc(rv.decision)}</b> by ${esc(rv.by)} · ${fmtUtc(rv.at)}${rv.comment ? `<div class="muted">“${esc(rv.comment)}”</div>` : ""}${rv.decision === "Edited" && rv.rootCause ? `<div style="margin-top:6px"><b>Root cause as edited by the reviewer:</b> ${esc(rv.rootCause)}</div>` : ""}<div style="margin-top:8px"><a class="btn sm" href="/api/qa/runs/${run.id}/${x.caseId}/report.docx">${icon("file-text", 13)}Defect report (Word)</a> <a class="btn sm" href="/api/qa/runs/${run.id}/${x.caseId}/report.pdf">${icon("file-text", 13)}PDF</a></div>` : `Waiting for a QA lead: <a href="#/qa/runs/${run.id}/${x.idx}">approve, edit or reject the root cause</a> on the case page. The defect report unlocks after that.`)
@@ -205,15 +213,18 @@ export async function trace(view, runId, idx) {
 
   // 3 · database before and after (harness)
   const DC = audit && audit.dbChanges;
-  const fmtV = v => v == null ? '<span class="muted">NULL</span>' : raw(typeof v === "object" ? JSON.stringify(v) : String(v));
+  const sq = t => String(t).replace(/\s+/g, " ").trim();
+  const altered = RT.filter(r => r.stored && r.stored.status === "changed" && r.stored.found);
+  const mark = t => { const h = altered.find(r => sq(t).includes(sq(r.stored.found)) || sq(r.stored.found).includes(sq(t)) && sq(t).length > 8); return h ? h.typed : null; };
+  const fmtV = v => cellV(v, mark);
   const dbSection = `<section id="tr-db"><h2 class="tr-h">${icon("database", 18)}3 · Database before and after</h2>
     <p class="small muted" style="margin:-4px 0 10px">Recorded by the test harness, not by the AI: the tables below were copied before the first AI step and after the last one, and compared row by row. This is what the case actually changed in the database.</p>
     ${!DC ? `<div class="card"><div class="card-body small muted">This run was recorded before database snapshots were added. Rerun the case to see them.</div></div>` : `<div class="stack">${Object.entries(DC).map(([t, d]) => {
       const n = d.inserted.length + d.updated.length + d.deleted.length;
       if (!n) return `<div class="tr-db-none small"><span class="mono">${esc(t)}</span> · no change (${num(d.rowsAfter)} rows)</div>`;
-      const ins = d.inserted.length ? `<div class="tr-lbl">${d.inserted.length} row${d.inserted.length === 1 ? "" : "s"} added</div>${rowsTable(d.inserted)}` : "";
+      const ins = d.inserted.length ? `<div class="tr-lbl">${d.inserted.length} row${d.inserted.length === 1 ? "" : "s"} added</div>${rowsTable(d.inserted, null, mark)}` : "";
       const upd = d.updated.length ? `<div class="tr-lbl">${d.updated.length} row${d.updated.length === 1 ? "" : "s"} changed</div><div class="table-wrap"><table class="tbl tr-rows"><thead><tr><th>${esc(d.pk)}</th><th>Column</th><th>Before</th><th>After</th></tr></thead><tbody>${d.updated.map(u => Object.entries(u.changes).map(([c, [a, b]], i) => `<tr>${i === 0 ? `<td class="mono" rowspan="${Object.keys(u.changes).length}">${esc(u.key)}</td>` : ""}<td class="mono">${esc(c)}</td><td class="mono">${fmtV(a)}</td><td class="mono">${fmtV(b)}</td></tr>`).join("")).join("")}</tbody></table></div>` : "";
-      const del = d.deleted.length ? `<div class="tr-lbl">${d.deleted.length} row${d.deleted.length === 1 ? "" : "s"} removed</div>${rowsTable(d.deleted)}` : "";
+      const del = d.deleted.length ? `<div class="tr-lbl">${d.deleted.length} row${d.deleted.length === 1 ? "" : "s"} removed</div>${rowsTable(d.deleted, null, mark)}` : "";
       return `<div class="card"><div class="card-head"><h2 class="mono" style="font-size:15px">${esc(t)}</h2><span class="small muted">${num(d.rowsBefore)} rows before → ${num(d.rowsAfter)} after</span></div><div class="card-body">${ins}${upd}${del}</div></div>`;
     }).join("")}</div>`}</section>`;
 

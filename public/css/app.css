@@ -243,7 +243,9 @@ section[id^="tr-"] { scroll-margin-top: 70px; }
 .tr-detail > .tr-lbl:first-child { margin-top: 0; }
 .tr-thought { margin: 0 0 6px; font-size: 14.5px; line-height: 1.55; }
 .tr-acts td, .tr-api td, .tr-rows td { vertical-align: top; }
-.tr-rows td { font-size: 12px; white-space: nowrap; }
+.tr-rows td { font-size: 12px; white-space: normal; overflow-wrap: anywhere; max-width: 360px; min-width: 70px; }
+.tr-rows td.tr-nw { white-space: nowrap; max-width: none; }
+.tr-bad-val { background: #fef2f2; color: var(--bad); font-weight: 600; }
 .tr-clip { max-width: 520px; word-break: break-word; }
 .tr-acts tr.tr-fail td { background: #fef2f2; }
 .tr-raw { margin-top: 12px; }
@@ -271,3 +273,12 @@ section[id^="tr-"] { scroll-margin-top: 70px; }
 .sidebar { min-height: 100vh; }
 .tr-turn.tr-k-start { border-left-color: #cbd5e1; background: #f8fafc; } .tr-turn.tr-k-none { border-left-color: #d97706; }
 .tr-acts { font-size: 13px; }
+
+@media (max-width: 1320px) {
+  .tr-turn-body { grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); }
+  .tr-acts td:nth-child(3), .tr-acts td:nth-child(4) { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  .tr-acts td:nth-child(3) { max-width: 160px; }
+  .tr-acts td:nth-child(4) { max-width: 140px; }
+  .tr-acts td:nth-child(5) { min-width: 90px; }
+  .tr-acts { font-size: 12px; }
+}
