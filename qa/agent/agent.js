@@ -194,6 +194,20 @@ function buildRoundTrip(typed, apiCalls, changes, pageText) {
   return [...new Set(typed.map(squash))].filter(t => t.length >= 3).map(t => ({ typed: t, sent: look(t, sentTexts), stored: look(t, dbTexts), displayed: look(t, [pageText]) }));
 }
 
+// columns the verdict text says changed (by name, next to a change word) in tables where the harness diff saw no change at all
+function claimCheck(text, before, after) {
+  if (!before || !after) return [];
+  const d = dbtool.diff(before, after), out = [];
+  const changeWord = /(increment|increas|decreas|decrement|\bupdated|\bchanged|went from|from \d+ to \d+|set to|now (is|shows|equals))/i;
+  if (!changeWord.test(text)) return [];
+  for (const [t, x] of Object.entries(d)) {
+    if (x.inserted.length || x.updated.length || x.deleted.length) continue;
+    const cols = Object.keys(((after[t] || {}).rows || [])[0] || {}).filter(c => c.includes("_") && c.length >= 6);
+    for (const c of cols) if (new RegExp(`\\b${c}\\b`, "i").test(text)) out.push({ table: t, column: c });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- main loop
 async function runCase({ page, app, step, testInfo, caseDef }) {
   const cfg = llm.config();
@@ -317,6 +331,15 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
         turnsLog.push(rec);
         history.push(`Turn ${turn}: you returned a PASS verdict, but the independent integrity check found values that the application changed:\n${issues.map(x => `  you typed ${JSON.stringify(x.typed)} but ${x.where} shows ${JSON.stringify(x.found)}`).join("\n")}\n  This check is mechanical and can be wrong: it may have matched similar text elsewhere (for example the job log or
   another incident). Confirm with the stored value (query the database) before changing your verdict, then give your final verdict.`);
+        continue;
+      }
+      // claim check: a PASS that says a value changed in a table the harness saw unchanged is sent back once
+      const claim = claimCheck(`${j.thought || ""} ${fin.summary || ""} ${fin.evidence || ""}`, dbBefore, dbtool.snapshot(dbFile, TRACK));
+      if (claim.length) {
+        challenged = true; integrity = { ...integrity, claims: claim };
+        rec.actions.push({ type: "finish", verdict: "pass", ok: false, error: "claim check: verdict describes a database change the harness did not see" });
+        turnsLog.push(rec);
+        history.push(`Turn ${turn}: you returned a PASS verdict, but the test harness compared the database before your first step and now, and found NO change in: ${claim.map(c => `${c.table}.${c.column}`).join(", ")}. Your verdict says this changed. Compare the values in your own earlier SQL results (before vs after), query again if needed, and give your final verdict. If the expected result needed this change and it did not happen, the verdict is FAIL.`);
         continue;
       }
     }
