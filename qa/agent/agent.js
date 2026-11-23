@@ -185,8 +185,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
       if (n.nodeType !== 1) return;
       const t = n.matches && n.matches('[data-testid="toast"]') ? n : n.querySelector && n.querySelector('[data-testid="toast"]');
-      if (t) window.__aiToasts.push(t.innerText.trim());
-    }))).observe(document.documentElement, { childList: true, subtree: true });
+      if (t) window.__aiToasts.push((t.textContent || "").trim());
+    }))).observe(document, { childList: true, subtree: true }); // document, not documentElement: init scripts run before <html> exists
   });
   page.on("request", r => { if (r.url().includes("/api/")) inflight.add(r); });
   const done = r => inflight.delete(r);
@@ -303,7 +303,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
         res.target = target.label ? `${target.kind} "${target.label}"${target.testid ? ` (${target.testid})` : ""}` : a.ref || "";
         const a0 = Date.now();
         try {
-          if (["click", "fill", "select", "check"].includes(type) && !(await loc.count())) throw new Error(`ref ${a.ref} is not on the current page (refs change every turn)`);
+          if (["click", "fill", "select", "check"].includes(type) && !(await loc.count())) throw new Error(`control ${a.ref}${target.label ? ` ("${target.label}")` : ""} is no longer on the page (the page changed after an earlier action)`);
           if (type === "click") await loc.click({ timeout: 5000 });
           else if (type === "fill") { await loc.fill(String(a.text ?? ""), { timeout: 5000 }); typedValues.push(String(a.text ?? "")); }
           else if (type === "select") { try { await loc.selectOption({ label: String(a.option) }, { timeout: 5000 }); } catch { await loc.selectOption(String(a.option), { timeout: 5000 }); } }
