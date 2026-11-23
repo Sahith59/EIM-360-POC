@@ -50,6 +50,11 @@ Verdicts:
   "Test script maintenance" (the test case itself is out of date) or "Environment / test data".
 - "inconclusive": you could not reach a reliable verdict (blocked, ambiguous evidence, missing data). A person decides.
 
+Locating a defect (for rootCause and component): compare what the page SENT to the backend (the API calls listed each turn),
+what the backend RETURNED, what the database STORED and what the page SHOWS. If the request already carried the wrong
+value, the defect is in the front end (the page). If the request was correct but the stored or returned value is wrong,
+the defect is in the backend save/processing logic. Say which, and quote the request and the stored value as evidence.
+
 Reply with ONE JSON object:
 {"thought": "<your reasoning about the current state, 1-3 sentences>",
  "step": "<short imperative title for what this turn does, as a tester would log it>",
@@ -197,7 +202,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     if (!u.pathname.startsWith("/api/") || u.pathname.startsWith("/api/qa") || u.pathname.startsWith("/api/test")) return;
     const e = { method: r.method(), path: u.pathname + u.search, status: res.status() };
     if (r.method() !== "GET" || res.status() >= 400) { try { e.body = clip(await res.text(), 300); } catch {} }
-    if (r.method() !== "GET") { try { e.sent = clip(r.postData(), 600); } catch {} }
+    if (r.method() !== "GET") { try { e.sent = clip(r.postData(), 1500); } catch {} }
     api.push(e);
   });
   const settle = async () => { const end = Date.now() + 6000; await sleep(120); while (inflight.size && Date.now() < end) await sleep(60); await sleep(150); };
