@@ -137,8 +137,8 @@ export async function trace(view, runId, idx) {
       <header class="tr-turn-head"><span class="tr-num">${rec.turn}</span><div style="min-width:0"><div class="tr-turn-title">${esc(rec.step)}</div><div class="small muted">${icon(label[1], 13)} ${label[0]}${t.startedAtMs != null ? ` · started ${secs(t.startedAtMs)} into the case` : ""} · model ${secs(t.latencyMs || rec.ms)} · ${num(((t.usage || {}).input || 0) + ((t.usage || {}).output || 0))} tokens · <b>${usd(cl.cost)}</b>${t.attempts > 1 ? ` · <span style="color:var(--warn)">answered on attempt ${t.attempts}</span>` : ""}</div></div></header>
       <div class="tr-turn-body">
         <div class="tr-shots">
-          ${cl.saw ? `<figure class="shot" data-zoom="${cl.saw.src}"><img loading="lazy" src="${cl.saw.src}" alt="Screen the AI saw before turn ${rec.turn}"><figcaption class="cap">${icon("eye", 13)}<span>What the AI saw${cl.saw.exact ? "" : " (step screenshot)"}</span></figcaption></figure>` : ""}
-          ${cl.after ? `<figure class="shot" data-zoom="${cl.after}"><img loading="lazy" src="${cl.after}" alt="Screen after turn ${rec.turn}"><figcaption class="cap">${icon("camera", 13)}<span>After these actions</span>${cl.stepMs != null ? `<span class="spacer"></span><span class="muted">${secs(cl.stepMs)}</span>` : ""}</figcaption></figure>` : ""}
+          ${cl.saw ? `<figure class="shot" data-zoom="${cl.saw.src}" title="Click to enlarge"><img src="${cl.saw.src}" alt="Screen the AI saw before turn ${rec.turn}"><figcaption class="cap">${icon("eye", 13)}<span>What the AI saw${cl.saw.exact ? "" : " (step screenshot)"}</span></figcaption></figure>` : ""}
+          ${cl.after ? `<figure class="shot" data-zoom="${cl.after}" title="Click to enlarge"><img src="${cl.after}" alt="Screen after turn ${rec.turn}"><figcaption class="cap">${icon("camera", 13)}<span>After these actions</span>${cl.stepMs != null ? `<span class="spacer"></span><span class="muted">${secs(cl.stepMs)}</span>` : ""}</figcaption></figure>` : ""}
         </div>
         <div class="tr-detail">
           <div class="tr-lbl">${icon("bot", 14)}Gemini's reasoning</div>
@@ -158,7 +158,7 @@ export async function trace(view, runId, idx) {
       </div></article>`;
   };
   const timeline = `<section id="tr-steps"><h2 class="tr-h">${icon("route", 18)}2 · Every decision and action</h2>
-    <p class="small muted" style="margin:-4px 0 10px">Each card is one model call: what Gemini saw, why it decided what it did, what Playwright executed, what the database returned and how the application responded. Nothing here was edited after the run.</p>
+    <p class="small muted" style="margin:-4px 0 10px">Each card is one model call (click a screenshot to enlarge it): what Gemini saw, why it decided what it did, what Playwright executed, what the database returned and how the application responded. Nothing here was edited after the run.</p>
     <div class="tr-timeline">${calls.map(turnCard).join("")}</div></section>`;
 
   // 3 · verdict
