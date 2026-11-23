@@ -42,4 +42,29 @@ function addNote(root, { runId, caseId, model, note }) {
   db.close();
 }
 
-module.exports = { openReadOnly, schema, query, addNote };
+// Snapshot whole tables (harness use only, not exposed to the AI) so a test's database changes can be diffed.
+function snapshot(file, tables) {
+  const db = openReadOnly(file); if (!db) return null;
+  try {
+    const out = {};
+    for (const t of tables) {
+      const cols = db.prepare(`PRAGMA table_info("${t}")`).all(); if (!cols.length) continue;
+      const pk = (cols.find(c => c.pk > 0) || cols[0]).name;
+      out[t] = { pk, rows: db.prepare(`SELECT * FROM "${t}"`).all() };
+    }
+    return out;
+  } finally { db.close(); }
+}
+function diff(before, after) {
+  const res = {};
+  for (const t of Object.keys(after || {})) {
+    const pk = after[t].pk, B = new Map(((before || {})[t] || { rows: [] }).rows.map(r => [String(r[pk]), r])), A = new Map(after[t].rows.map(r => [String(r[pk]), r]));
+    const inserted = [], deleted = [], updated = [];
+    for (const [k, r] of A) { const o = B.get(k); if (!o) inserted.push(r); else { const ch = {}; for (const c of Object.keys(r)) if (JSON.stringify(r[c]) !== JSON.stringify(o[c])) ch[c] = [o[c], r[c]]; if (Object.keys(ch).length) updated.push({ key: k, changes: ch }); } }
+    for (const [k, r] of B) if (!A.has(k)) deleted.push(r);
+    res[t] = { pk, inserted, deleted, updated, rowsBefore: B.size, rowsAfter: A.size };
+  }
+  return res;
+}
+
+module.exports = { openReadOnly, schema, query, addNote, snapshot, diff };

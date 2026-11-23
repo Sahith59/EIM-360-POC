@@ -4,7 +4,11 @@ import { icon } from "../icons.js";
 import { api, esc, fmtDur, fmtUtc, modal, pageHead, $, $$ } from "../core.js";
 
 const art = (run, rel) => `/qa-artifacts/${encodeURIComponent(run)}/${String(rel).split("/").map(encodeURIComponent).join("/")}`;
-const usd = v => v == null ? "n/a" : "$" + (v < 0.01 ? v.toFixed(4) : v < 1 ? v.toFixed(3) : v.toFixed(2));
+const usd = v => v == null ? "n/a" : "$" + (v < 1 ? v.toFixed(4) : v.toFixed(2));
+const prettyModel = m => ({ "gemini-3.5-flash": "Gemini 3.5 Flash" })[m] || m;
+// show a value exactly as typed, with every backslash made visible
+const raw = v => esc(String(v)).replace(/\\/g, '<mark class="tr-bs">\\</mark>');
+const target = t => { const m = String(t || "").match(/^(\w+) "(.*)"(?: \((.*)\))?$/); return m ? `<b>${esc(m[2])}</b> <span class="muted small">${esc(m[1])}${m[3] ? " · " + esc(m[3]) : ""}</span>` : esc(t || ""); };
 const secs = ms => ms == null ? "–" : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
 const num = n => (n || 0).toLocaleString("en-US");
 // list prices used only when an older trace did not store the cost of each call (USD per 1M tokens)
@@ -21,6 +25,7 @@ function splitPrompt(p) {
   return out;
 }
 const afterColon = s => (s || "").replace(/^[^\n:]*:\s*/, "");
+function pretty(t) { try { return JSON.stringify(JSON.parse(t), null, 2); } catch { return String(t); } }
 function parseJson(t) { try { const i = t.indexOf("{"), j = t.lastIndexOf("}"); return JSON.parse(t.slice(i, j + 1)); } catch { return null; } }
 // older traces kept the page's API calls and messages only inside the prompt text
 function apiFromPrompt(p) {
@@ -62,6 +67,7 @@ export async function trace(view, runId, idx) {
   const T = (audit && audit.turns) || [];
   const L = g.timeline || [];
   const model = g.model;
+  const AI = /gemini/i.test(g.provider) ? "Gemini" : /anthropic|claude/i.test(g.provider) ? "Claude" : /openai|azure/i.test(g.provider) ? "GPT" : "The AI";
   // per-call cost: stored by newer traces, otherwise priced from the tokens of that call
   let costKnown = true;
   const calls = L.map((rec, k) => {
@@ -87,23 +93,26 @@ export async function trace(view, runId, idx) {
     cl.msgsAfter = nx ? (nx.messages || msgsFromPrompt(nx.prompt || "")) : [];
     cl.sql = (cl.t.sqlResults && cl.t.sqlResults.length) ? cl.t.sqlResults : (g.queries || []).filter(q => q.turn === cl.rec.turn).map(q => ({ sql: q.sql, why: q.why, rowCount: q.rowCount, error: q.error, rows: q.sample || [], partial: (q.rowCount || 0) > (q.sample || []).length }));
   });
+  const issues = (g.integrityCheck && g.integrityCheck.issues) || [];
   const totIn = g.usage.input, totOut = g.usage.output, totCached = g.usage.cached || 0;
   const totalCost = g.costUsd != null ? g.costUsd : calls.reduce((s, cl) => s + (cl.cost || 0), 0);
-  const backendCalls = calls.reduce((s, cl) => s + cl.apiAfter.length, 0);
+  const initApi = T[0] ? (T[0].apiCalls || apiFromPrompt(T[0].prompt || "")) : [], initMsgs = T[0] ? (T[0].messages || msgsFromPrompt(T[0].prompt || "")) : [];
+  const backendCalls = initApi.length + calls.reduce((s, cl) => s + cl.apiAfter.length, 0);
   const browserMs = Math.max(0, g.wallMs - g.llmMs);
   const first = splitPrompt((T[0] && T[0].prompt) || "");
   const V = { pass: ["Pass", "ok", "check-circle-2"], fail: ["Fail", "bad", "x-circle"], inconclusive: ["Inconclusive", "violet", "circle-help"] }[g.verdict] || ["?", "", "circle-help"];
 
-  const summary = `<div class="card tr-summary" data-testid="trace-summary"><div class="card-body">
-    <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px"><span class="pill ${V[1]}" style="font-size:14px">${icon(V[2], 15)}AI verdict: ${V[0]}</span>${g.classification && g.verdict === "fail" ? `<span class="pill bad">${esc(g.classification)}</span>` : ""}<span class="muted">${esc(g.provider)} <span class="mono">${esc(model)}</span> drove Chrome through Playwright · run ${esc(run.id)} · ${esc(run.build.label || run.build.version)}</span></div>
+  const summary = (g.harnessError ? `<div class="callout" style="margin-bottom:12px;border-color:#f2c3be;background:var(--bad-50)">${icon("alert-triangle", 15)} <b>The AI could not finish this case:</b> ${esc(g.summary)} A person decides it.</div>` : "") + `<div class="card tr-summary" data-testid="trace-summary"><div class="card-body">
+    <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px"><span class="pill ${V[1]}" style="font-size:14px">${icon(V[2], 15)}AI verdict: ${V[0]}</span>${g.classification && g.verdict === "fail" ? `<span class="pill bad">${esc(g.classification)}</span>` : ""}<span class="muted">${esc(prettyModel(model))} drove Chrome through Playwright · run ${esc(run.id)} · build ${esc(run.build.label || run.build.version)}</span></div>
+    <p class="tr-lead" data-testid="trace-story">${esc(g.summary)}</p>
     <div class="tr-stats">
-      ${[["Model calls", L.length, "decisions"], ["Browser actions", g.actions, "clicks / entries"], ["SQL queries", g.queries.length, "read-only"], ["Backend API calls", backendCalls, "made by the page"], ["Screenshots", calls.filter(cl => cl.saw).length, "the AI saw"],
-         ["Tokens", num(totIn + totOut), `${num(totIn)} in (${num(totCached)} cached) · ${num(totOut)} out`], ["Cost", usd(totalCost), costKnown ? "billed per call" : "priced from tokens"], ["Time", secs(g.wallMs), `AI thinking ${secs(g.llmMs)} · browser ${secs(browserMs)}`]]
-        .map(([k, v, s]) => `<div class="tr-stat"><div class="small muted">${k}</div><div class="tr-stat-v">${v}</div><div class="small muted">${s}</div></div>`).join("")}
+      ${[["AI steps", L.length, "model calls"], ["Browser actions", g.actions, "clicks and entries"], ["SQL queries", g.queries.length, "read-only"], ["Backend calls", backendCalls, "by the page"], ["Screenshots", calls.filter(cl => cl.saw).length, "seen by the AI"],
+         ["Tokens", num(totIn + totOut), `${num(totCached)} from cache`, `Tokens are the units of text the AI read and wrote: ${num(totIn)} in (${num(totCached)} served from cache), ${num(totOut)} out`], ["Cost", usd(totalCost), "for this case"], ["Time", secs(g.wallMs), `AI ${secs(g.llmMs)} · browser ${secs(browserMs)}`]]
+        .map(([k, v, s, tip]) => `<div class="tr-stat"${tip ? ` title="${esc(tip)}"` : ""}><div class="small muted">${k}</div><div class="tr-stat-v">${v}</div><div class="small muted">${s}</div></div>`).join("")}
     </div>
     <div class="tr-bar" title="Where the time went"><span style="width:${(g.llmMs / g.wallMs * 100).toFixed(1)}%" class="tr-bar-ai"></span><span style="width:${(browserMs / g.wallMs * 100).toFixed(1)}%" class="tr-bar-pw"></span></div>
-    <div class="small muted" style="margin-top:4px"><span class="tr-dot tr-bar-ai"></span>Gemini thinking ${Math.round(g.llmMs / g.wallMs * 100)}% · <span class="tr-dot tr-bar-pw"></span>Playwright, page loads and checks ${Math.round(browserMs / g.wallMs * 100)}%</div>
-    <nav class="tr-nav small"><a href="#tr-context" data-jump>1 · What the AI was given</a><a href="#tr-steps" data-jump>2 · Every decision and action (${L.length})</a><a href="#tr-verdict" data-jump>3 · Verdict, checks and review</a><a href="#tr-cost" data-jump>4 · Cost and time per call</a></nav>
+    <div class="small muted" style="margin-top:4px"><span class="tr-dot tr-bar-ai"></span>${esc(AI)} thinking ${Math.round(g.llmMs / g.wallMs * 100)}% · <span class="tr-dot tr-bar-pw"></span>Playwright, page loads and checks ${Math.round(browserMs / g.wallMs * 100)}%</div>
+    <nav class="tr-nav small"><a href="#tr-context" data-jump>1 · What the AI was given</a><a href="#tr-steps" data-jump>2 · Every decision and action (${L.length})</a><a href="#tr-db" data-jump>3 · Database before and after</a><a href="#tr-verdict" data-jump>4 · Verdict, checks and review</a><a href="#tr-cost" data-jump>5 · Cost and time per call</a></nav>
   </div></div>`;
 
   // 1 · context
@@ -126,76 +135,101 @@ export async function trace(view, runId, idx) {
     </div></section>`;
 
   // 2 · timeline
-  const actionRows = cl => cl.rec.actions.filter(z => z.type !== "query" && z.type !== "finish").map((z, n) => `<tr class="${z.ok === false ? "tr-fail" : ""}"><td class="num">${n + 1}</td><td><span class="pill">${esc(z.type)}</span></td><td>${esc(z.target || "")}</td><td class="mono">${z.value != null && z.value !== "" ? esc(String(z.value)) : '<span class="muted">–</span>'}</td><td>${z.ok === false ? `<span class="pill bad">${icon("x", 12)}failed</span><div class="small" style="color:var(--bad)">${esc(z.error || "")}</div>` : `<span class="pill ok">${icon("check", 12)}done</span>`}</td><td class="num small muted">${z.ms != null ? secs(z.ms) : ""}</td></tr>`).join("");
+  const actionRows = cl => cl.rec.actions.filter(z => z.type !== "query" && z.type !== "finish").map((z, n) => `<tr class="${z.ok === false ? "tr-fail" : ""}"><td class="num">${n + 1}</td><td><span class="pill">${esc(z.type)}</span></td><td>${target(z.target)}</td><td class="mono">${z.value != null && z.value !== "" ? raw(z.value) : '<span class="muted">–</span>'}</td><td>${z.ok === false ? `<span class="pill bad">${icon("x", 12)}failed</span><div class="small" style="color:var(--bad)">${esc(z.error || "")}</div>` : `<span class="pill ok">${icon("check", 12)}done</span>`}</td><td class="num small muted">${z.ms != null ? secs(z.ms) : ""}</td></tr>`).join("");
   const turnCard = (cl, k) => {
     const rec = cl.rec, t = cl.t, p = cl.parsed || {}, fin = rec.actions.find(z => z.type === "finish");
-    const kind = fin ? (fin.ok === false ? "challenge" : "finish") : rec.actions.some(z => z.type !== "query") ? "act" : "sql";
-    const label = { act: ["Browser actions", "mouse-pointer-click"], sql: ["Database check", "database"], finish: ["Verdict", "flag"], challenge: ["Verdict sent back by the integrity check", "alert-triangle"] }[kind];
+    const kind = fin ? (fin.ok === false ? "challenge" : "finish") : !rec.actions.length ? "none" : rec.actions.some(z => z.type !== "query") ? "act" : "sql";
+    const label = { none: ["No usable action returned", "alert-triangle"], act: ["Browser actions", "mouse-pointer-click"], sql: ["Database check", "database"], finish: ["Verdict", "flag"], challenge: ["Verdict sent back by the integrity check", "alert-triangle"] }[kind];
     const ps = splitPrompt(t.prompt || "");
     const acts = actionRows(cl);
+    const mism = c2 => { const hits = issues.filter(z => c2.sql.some(q => JSON.stringify(q.rows || []).includes(z.found)) || c2.msgsAfter.some(m => m.includes(z.found))); return hits.length ? `<div class="tr-mismatch">${icon("alert-triangle", 15)}<div><b>Here the value changed.</b> ${hits.map(z => `Gemini typed <span class="mono">${raw(z.typed)}</span>; the database returned <span class="mono">${raw(z.found)}</span>.`).join(" ")}</div></div>` : ""; };
     return `<article class="tr-turn tr-k-${kind}" id="turn-${rec.turn}" data-testid="trace-turn">
       <header class="tr-turn-head"><span class="tr-num">${rec.turn}</span><div style="min-width:0"><div class="tr-turn-title">${esc(rec.step)}</div><div class="small muted">${icon(label[1], 13)} ${label[0]}${t.startedAtMs != null ? ` · started ${secs(t.startedAtMs)} into the case` : ""} · model ${secs(t.latencyMs || rec.ms)} · ${num(((t.usage || {}).input || 0) + ((t.usage || {}).output || 0))} tokens · <b>${usd(cl.cost)}</b>${t.attempts > 1 ? ` · <span style="color:var(--warn)">answered on attempt ${t.attempts}</span>` : ""}</div></div></header>
       <div class="tr-turn-body">
         <div class="tr-shots">
-          ${cl.saw ? `<figure class="shot" data-zoom="${cl.saw.src}" title="Click to enlarge"><img src="${cl.saw.src}" alt="Screen the AI saw before turn ${rec.turn}"><figcaption class="cap">${icon("eye", 13)}<span>What the AI saw${cl.saw.exact ? "" : " (step screenshot)"}</span></figcaption></figure>` : ""}
-          ${cl.after ? `<figure class="shot" data-zoom="${cl.after}" title="Click to enlarge"><img src="${cl.after}" alt="Screen after turn ${rec.turn}"><figcaption class="cap">${icon("camera", 13)}<span>After these actions</span>${cl.stepMs != null ? `<span class="spacer"></span><span class="muted">${secs(cl.stepMs)}</span>` : ""}</figcaption></figure>` : ""}
+          ${cl.saw ? `<figure class="shot" data-zoom="${cl.saw.src}" data-zoom-title="AI step ${rec.turn} · the screen ${esc(AI)} saw" title="Click to enlarge${t.screenshotSha256 || rec.screenshotSha256 ? ` · sha256 ${esc(t.screenshotSha256 || rec.screenshotSha256)}` : ""}"><img src="${cl.saw.src}" alt="Screen the AI saw at step ${rec.turn}"><figcaption class="cap">${icon("eye", 13)}<span>The screen ${esc(AI)} saw</span><span class="spacer"></span><span class="muted">${icon("search", 12)} enlarge</span></figcaption></figure>` : ""}
+
         </div>
         <div class="tr-detail">
-          <div class="tr-lbl">${icon("bot", 14)}Gemini's reasoning</div>
+          <div class="tr-lbl">${icon("bot", 14)}${esc(AI)}'s reasoning</div>
           <p class="tr-thought">${esc(rec.thought || p.thought || "")}</p>
           ${t.page ? `<div class="small muted" style="margin-bottom:8px">Page at that moment: <span class="mono">${esc(t.page.url)}</span> · “${esc(t.page.heading)}” · ${t.page.controls} controls listed for the AI${t.page.fieldErrors && t.page.fieldErrors.length ? ` · validation shown: ${esc(t.page.fieldErrors.join("; "))}` : ""}</div>` : ""}
-          ${acts ? `<div class="tr-lbl">${icon("mouse-pointer-click", 14)}What Gemini told Playwright to do</div><div class="table-wrap"><table class="tbl tr-acts"><thead><tr><th class="num">#</th><th>Action</th><th>On control</th><th>Value typed / chosen</th><th>Result</th><th class="num">Took</th></tr></thead><tbody>${acts}</tbody></table></div>` : ""}
+          ${acts ? `<div class="tr-lbl">${icon("mouse-pointer-click", 14)}What ${esc(AI)} told Playwright to do</div><div class="table-wrap"><table class="tbl tr-acts"><thead><tr><th class="num">#</th><th>Action</th><th>On screen element</th><th>Value typed / chosen</th><th>Result</th><th class="num">Took</th></tr></thead><tbody>${acts}</tbody></table></div>` : ""}
           ${cl.sql.map(q => `<div class="tr-lbl">${icon("database", 14)}SQL query (read-only)</div><pre class="tr-pre tr-sql">${esc(q.sql)}</pre><div class="small muted" style="margin:4px 0">${q.why ? `Why: ${esc(q.why)} · ` : ""}${q.error ? `<span style="color:var(--bad)">error: ${esc(q.error)}</span>` : `${q.rowCount} row${q.rowCount === 1 ? "" : "s"} returned${q.partial ? " (first rows shown; the full result is in the prompt of the next call)" : ""}`}</div>${q.error ? "" : rowsTable(q.rows, q.columns)}`).join("")}
           ${cl.apiAfter.length || cl.msgsAfter.length ? `<div class="tr-lbl">${icon("server", 14)}What the application did in response</div>
             ${cl.msgsAfter.length ? `<div class="small" style="margin-bottom:6px">Messages on screen: ${cl.msgsAfter.map(m => `<span class="pill">${esc(m)}</span>`).join(" ")}</div>` : ""}
-            ${cl.apiAfter.length ? `<div class="table-wrap"><table class="tbl tr-api"><thead><tr><th>Backend call</th><th class="num">Status</th><th>Sent / returned</th></tr></thead><tbody>${cl.apiAfter.map(z => z.raw ? `<tr><td colspan="3" class="mono small">${esc(z.raw)}</td></tr>` : `<tr><td class="mono small">${esc(z.method)} ${esc(z.path)}</td><td class="num"><span class="pill ${z.status >= 400 ? "bad" : "ok"}">${z.status}</span></td><td class="mono small tr-clip">${z.sent ? `sent ${esc(z.sent)}` : ""}${z.body ? `${z.sent ? "<br>" : ""}returned ${esc(z.body)}` : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}` : ""}
+            ${cl.apiAfter.length ? `<div class="table-wrap"><table class="tbl tr-api"><thead><tr><th>Backend call made by the page</th><th class="num">Status</th></tr></thead><tbody>${cl.apiAfter.map(z => z.raw ? `<tr><td colspan="2" class="mono small">${esc(z.raw)}</td></tr>` : `<tr><td class="mono small">${esc(z.method)} ${esc(z.path)}${z.sent || z.bodyFull || z.body ? `<details class="tr-payload"><summary>${z.sent ? "Show what was sent and returned" : "Show what was returned"}</summary>${z.sent ? `<div class="tr-lbl">Sent</div>${pre(pretty(z.sent))}` : ""}${z.bodyFull || z.body ? `<div class="tr-lbl">Returned</div>${pre(pretty(z.bodyFull || z.body))}` : ""}<div class="small muted">JSON writes one backslash as \\\\.</div></details>` : ""}</td><td class="num"><span class="pill ${z.status >= 400 ? "bad" : "ok"}">${z.status}</span></td></tr>`).join("")}</tbody></table></div>` : ""}` : ""}
+          ${mism(cl)}
           ${fin ? `<div class="tr-lbl">${icon("flag", 14)}${fin.ok === false ? "Gemini said PASS, but the integrity check disagreed" : `Verdict returned: ${esc(String(fin.verdict).toUpperCase())}`}</div>${fin.ok === false ? `<p class="small" style="color:var(--bad);margin:0 0 6px">${esc(fin.error || "")}. The finding was sent back to Gemini, which looked again.</p>` : `<p class="small muted" style="margin:0 0 6px">Details in section 3.</p>`}` : ""}
+        </div>
           <div class="tr-raw">
             ${block("Prompt sent to the model", `${ps.history ? `<div class="tr-lbl">What it had done so far</div>${pre(ps.history)}` : ""}${ps.sqlBack ? `<div class="tr-lbl">SQL results handed back</div>${pre(ps.sqlBack)}` : ""}${ps.page ? `<div class="tr-lbl">Current page as text (controls, messages, API calls, visible text)</div>${pre(ps.page)}` : ""}${ps.retry ? `<div class="tr-lbl">Retry note</div>${pre(ps.retry)}` : ""}<div class="small muted">Plus the context in section 1 (guide, test data, case, schema) and the screenshot shown above.</div>${block("Full prompt text, exactly as sent", pre(t.prompt || ""), {})}`, { note: `${num((t.usage || {}).input)} tokens in${(t.usage || {}).cached ? `, ${num(t.usage.cached)} from cache` : ""}` })}
-            ${block("Model response, exactly as returned", pre(cl.parsed ? JSON.stringify(cl.parsed, null, 2) : (t.response || "")), { note: `${num((t.usage || {}).output)} tokens out (incl. thinking)` })}
+            ${block("Model response, exactly as returned", pre(t.response || ""), { note: `${num((t.usage || {}).output)} tokens out (incl. thinking)` })}
+            ${cl.parsed ? block("Model response, formatted", pre(JSON.stringify(cl.parsed, null, 2)), { note: "the same response, parsed and indented for reading" }) : ""}
+            ${t.attemptErrors && t.attemptErrors.length ? block(`Earlier attempts that could not be used (${t.attemptErrors.length})`, pre(t.attemptErrors.join("\n")), {}) : ""}
           </div>
-        </div>
       </div></article>`;
   };
-  const timeline = `<section id="tr-steps"><h2 class="tr-h">${icon("route", 18)}2 · Every decision and action</h2>
-    <p class="small muted" style="margin:-4px 0 10px">Each card is one model call (click a screenshot to enlarge it): what Gemini saw, why it decided what it did, what Playwright executed, what the database returned and how the application responded. Nothing here was edited after the run.</p>
-    <div class="tr-timeline">${calls.map(turnCard).join("")}</div></section>`;
+  const timeline = `<section id="tr-steps"><h2 class="tr-h">${icon("route", 18)}2 · Every decision and action<span class="spacer"></span><button class="btn sm" id="tr-expand" type="button">Expand all details</button></h2>
+    <p class="small muted" style="margin:-4px 0 6px">Each card is one AI step (one model call): the screen Gemini saw, why it decided what it did, what Playwright executed, what the database returned and how the application responded. Nothing here was edited after the run.</p>
+    <div class="tr-legend small"><span><i class="tr-sw tr-k-act"></i>browser actions</span><span><i class="tr-sw tr-k-sql"></i>database check</span><span><i class="tr-sw tr-k-finish"></i>verdict</span><span><i class="tr-sw tr-k-challenge"></i>sent back by the integrity check</span></div>
+    <div class="tr-timeline">${initApi.length || initMsgs.length ? `<article class="tr-turn tr-k-start"><header class="tr-turn-head"><span class="tr-num">0</span><div><div class="tr-turn-title">Start: the test harness opened EIM 360 as ${esc((T[0] && T[0].page && T[0].page.role) || c.role || "SWAT")} on a freshly reset test database</div><div class="small muted">Not an AI step. These are the calls the page made while loading, before Gemini's first decision.</div></div></header><div style="padding:10px 14px">${initMsgs.length ? `<div class="small" style="margin-bottom:6px">Messages on screen: ${initMsgs.map(m => `<span class="pill">${esc(m)}</span>`).join(" ")}</div>` : ""}<div class="table-wrap"><table class="tbl tr-api"><thead><tr><th>Backend call made by the page</th><th class="num">Status</th></tr></thead><tbody>${initApi.map(z => `<tr><td class="mono small">${esc(z.method || "")} ${esc(z.path || z.raw || "")}</td><td class="num"><span class="pill ${z.status >= 400 ? "bad" : "ok"}">${z.status || ""}</span></td></tr>`).join("")}</tbody></table></div></div></article>` : ""}${calls.map(turnCard).join("")}</div></section>`;
 
   // 3 · verdict
   const ic = g.integrityCheck || { checked: 0, issues: [] };
+  const RT = g.roundTrip || (audit && audit.roundTrip) || [];
+  const cellRt = (v, k) => !v ? "–" : v.status === "exact" ? `<span class="pill ok">${icon("check", 12)}unchanged</span>` : v.status === "changed" ? `<span class="pill bad">${icon("x", 12)}changed</span><div class="mono small">${raw(v.found)}</div>` : `<span class="muted small">${k === "sent" ? "not sent" : k === "stored" ? "not stored by this case" : "not on the final page"}</span>`;
+  const rtVerdict = r => r.sent.status === "exact" && r.stored.status === "changed" ? "Sent correctly by the page, changed when the backend saved it: the defect is in the backend save logic." : r.sent.status === "changed" ? "Already changed before it was sent: the defect is in the page (front end)." : r.sent.status === "exact" && r.stored.status === "exact" && r.displayed.status === "changed" ? "Stored correctly but displayed differently: the defect is in how the page shows it." : "";
+  const rtTable = RT.length ? `<div class="table-wrap"><table class="tbl tr-rt" data-testid="trace-roundtrip"><thead><tr><th>Typed by Gemini</th><th>Sent to the backend</th><th>Stored in the database</th><th>Shown on the page</th></tr></thead><tbody>${RT.map(r => `<tr><td class="mono">${raw(r.typed)}</td><td>${cellRt(r.sent, "sent")}</td><td>${cellRt(r.stored, "stored")}</td><td>${cellRt(r.displayed, "displayed")}</td></tr>${rtVerdict(r) ? `<tr><td colspan="4" class="small"><b>${esc(rtVerdict(r))}</b></td></tr>` : ""}`).join("")}</tbody></table></div>` : "";
   const rv = x.rcaReview;
-  const verdict = `<section id="tr-verdict"><h2 class="tr-h">${icon("flag", 18)}3 · Verdict, checks and review</h2>
-    <div class="grid g2" style="align-items:start">
+  const verdict = `<section id="tr-verdict"><h2 class="tr-h">${icon("flag", 18)}4 · Verdict, checks and review</h2>
+    <div class="stack">
       <div class="card"><div class="card-head"><h2>${icon(V[2], 17)}AI verdict: ${V[0]}</h2>${g.confidence != null ? `<span class="small muted">confidence ${Math.round(g.confidence * 100)}%</span>` : ""}</div><div class="card-body">
         <p style="margin-top:0">${esc(g.summary)}</p>
-        ${kv([["Test data used", esc(g.testData)], g.resolutionSteps.length ? ["Resolution steps (entered or approved)", `<ol style="margin:0;padding-left:18px">${g.resolutionSteps.map(s => `<li class="mono">${esc(s)}</li>`).join("")}</ol>${g.resolutionRationale ? `<div class="small muted">Why: ${esc(g.resolutionRationale)}</div>` : ""}`] : null,
+        ${kv([["Test data used", esc(g.testData)], g.resolutionSteps.length ? ["Resolution steps", `<ol style="margin:0;padding-left:18px">${g.resolutionSteps.map(s => `<li class="mono">${esc(s)}</li>`).join("")}</ol>${g.resolutionRationale ? `<div class="small muted">Why: ${esc(g.resolutionRationale)}</div>` : ""}`] : null,
           ["Expected", esc(g.expected)], ["Observed", esc(g.actual)], ["Evidence", `<ul style="margin:0;padding-left:18px">${g.evidence.map(e => `<li>${esc(e)}</li>`).join("")}</ul>`], g.observations.length ? ["Observations", `<ul style="margin:0;padding-left:18px">${g.observations.map(e => `<li>${esc(e)}</li>`).join("")}</ul>`] : null])}
-        ${g.verdict === "fail" ? `<div class="tr-lbl" style="margin-top:12px">Root cause (AI draft)</div>${kv([["Classification", esc(g.classification || "")], ["Root cause", esc(g.rootCause)], ["Component", esc(g.component)], ["Database findings", esc(g.dbFindings)], ["Draft defect", `${esc(g.defectTitle)} · <b>${esc(g.severity)}</b>`], ["Steps to reproduce", `<ol style="margin:0;padding-left:18px">${g.reproSteps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>`], ["Suggested next steps", `<ol style="margin:0;padding-left:18px">${g.nextSteps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>`]])}` : ""}
+        ${g.verdict === "fail" ? `<div class="tr-lbl" style="margin-top:12px">Root cause (AI draft)</div>${kv([["Classification", esc(g.classification || "")], ["Root cause", esc(g.rootCause)], ["Component", esc(g.component)], g.narrative ? ["Narrative", esc(g.narrative)] : null, ["Database findings", esc(g.dbFindings)], ["Draft defect", `${esc(g.defectTitle)} · <b>${esc(g.severity)}</b>`], ["Steps to reproduce", `<ol style="margin:0;padding-left:18px">${g.reproSteps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>`], ["Suggested next steps", `<ol style="margin:0;padding-left:18px">${g.nextSteps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>`]])}` : ""}
       </div></div>
-      <div class="stack">
+      <div class="grid g2" style="align-items:start">
         <div class="card" data-testid="trace-integrity"><div class="card-head"><h2>${icon(ic.issues.length ? "alert-triangle" : "check-circle-2", 17)}Independent integrity check</h2><span class="small muted">code, not AI</span></div><div class="card-body">
-          <p class="small" style="margin-top:0">Every value the AI typed is compared with what the page showed and what the database returned.</p>
-          ${ic.checked ? (ic.issues.length ? `<table class="tbl"><thead><tr><th>Typed by the AI</th><th>Found</th><th>Where</th></tr></thead><tbody>${ic.issues.map(z => `<tr><td class="mono">${esc(z.typed)}</td><td class="mono" style="color:var(--bad)">${esc(z.found)}</td><td class="small">${esc(z.where)}</td></tr>`).join("")}</tbody></table><p class="small" style="margin-bottom:0">${g.revisedAfterCheck ? "Gemini first said PASS; this check sent it back and Gemini changed its verdict." : "Consistent with the AI's verdict."}</p>` : `<p class="small" style="margin:0">${ic.checked} typed value${ic.checked === 1 ? "" : "s"} checked: stored and shown exactly as typed.</p>`) : `<p class="small muted" style="margin:0">The AI typed no values in this case.</p>`}
+          <p class="small" style="margin-top:0">Every value the AI typed is followed through the system: what the page sent to the backend, what the database stored and what the page then showed.</p>
+          ${rtTable}
+          ${ic.checked ? (ic.issues.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Typed by the AI</th><th>Found</th><th>Where</th></tr></thead><tbody>${ic.issues.map(z => `<tr><td class="mono">${raw(z.typed)}</td><td class="mono" style="color:var(--bad)">${raw(z.found)}</td><td class="small">${esc(z.where)}</td></tr>`).join("")}</tbody></table></div><p class="small" style="margin-bottom:0">${g.revisedAfterCheck ? (g.verdict !== "pass" ? "Gemini first said PASS; this check sent it back and Gemini changed its verdict." : "This check sent Gemini back to look again; it re-checked and kept PASS.") : "Consistent with the AI's verdict."}</p>` : `<p class="small" style="margin:0">${ic.checked} typed value${ic.checked === 1 ? "" : "s"} checked: unchanged wherever it was found (see the table above for sent, stored and shown).</p>`) : `<p class="small muted" style="margin:0">The AI typed no values in this case.</p>`}
         </div></div>
         <div class="card"><div class="card-head"><h2>${icon("user-check", 17)}Human review</h2></div><div class="card-body small">
-          ${g.verdict === "fail" ? (rv ? `<b>${esc(rv.decision)}</b> by ${esc(rv.by)} · ${fmtUtc(rv.at)}${rv.note ? `<div class="muted">“${esc(rv.note)}”</div>` : ""}<div style="margin-top:8px"><a class="btn sm" href="/api/qa/runs/${run.id}/${x.caseId}/report.docx">${icon("file-text", 13)}Defect report (Word)</a> <a class="btn sm" href="/api/qa/runs/${run.id}/${x.caseId}/report.pdf">${icon("file-text", 13)}PDF</a></div>` : `Waiting for a QA lead: <a href="#/qa/runs/${run.id}/${x.idx}">approve, edit or reject the root cause</a> on the case page. The defect report unlocks after that.`)
+          ${g.verdict === "fail" ? (rv ? `<b>${esc(rv.decision)}</b> by ${esc(rv.by)} · ${fmtUtc(rv.at)}${rv.comment ? `<div class="muted">“${esc(rv.comment)}”</div>` : ""}${rv.decision === "Edited" && rv.rootCause ? `<div style="margin-top:6px"><b>Root cause as edited by the reviewer:</b> ${esc(rv.rootCause)}</div>` : ""}<div style="margin-top:8px"><a class="btn sm" href="/api/qa/runs/${run.id}/${x.caseId}/report.docx">${icon("file-text", 13)}Defect report (Word)</a> <a class="btn sm" href="/api/qa/runs/${run.id}/${x.caseId}/report.pdf">${icon("file-text", 13)}PDF</a></div>` : `Waiting for a QA lead: <a href="#/qa/runs/${run.id}/${x.idx}">approve, edit or reject the root cause</a> on the case page. The defect report unlocks after that.`)
             : g.verdict === "inconclusive" ? "The AI could not decide. A QA engineer decides this case on the case page." : "Passed: no defect to raise. A tester can spot-check the evidence above."}
         </div></div>
       </div>
     </div></section>`;
 
-  // 4 · cost and time
-  const costTbl = `<section id="tr-cost"><h2 class="tr-h">${icon("receipt", 18)}4 · Cost and time per call</h2><div class="card"><div class="table-wrap"><table class="tbl" data-testid="trace-cost"><thead><tr><th class="num">Call</th><th>What it decided</th><th class="num">Model time</th><th class="num">Input tokens</th><th class="num">of which cached</th><th class="num">Output tokens</th><th class="num">Cost</th></tr></thead><tbody>
+  // 3 · database before and after (harness)
+  const DC = audit && audit.dbChanges;
+  const fmtV = v => v == null ? '<span class="muted">NULL</span>' : raw(typeof v === "object" ? JSON.stringify(v) : String(v));
+  const dbSection = `<section id="tr-db"><h2 class="tr-h">${icon("database", 18)}3 · Database before and after</h2>
+    <p class="small muted" style="margin:-4px 0 10px">Recorded by the test harness, not by the AI: the tables below were copied before the first AI step and after the last one, and compared row by row. This is what the case actually changed in the database.</p>
+    ${!DC ? `<div class="card"><div class="card-body small muted">This run was recorded before database snapshots were added. Rerun the case to see them.</div></div>` : `<div class="stack">${Object.entries(DC).map(([t, d]) => {
+      const n = d.inserted.length + d.updated.length + d.deleted.length;
+      if (!n) return `<div class="tr-db-none small"><span class="mono">${esc(t)}</span> · no change (${num(d.rowsAfter)} rows)</div>`;
+      const ins = d.inserted.length ? `<div class="tr-lbl">${d.inserted.length} row${d.inserted.length === 1 ? "" : "s"} added</div>${rowsTable(d.inserted)}` : "";
+      const upd = d.updated.length ? `<div class="tr-lbl">${d.updated.length} row${d.updated.length === 1 ? "" : "s"} changed</div><div class="table-wrap"><table class="tbl tr-rows"><thead><tr><th>${esc(d.pk)}</th><th>Column</th><th>Before</th><th>After</th></tr></thead><tbody>${d.updated.map(u => Object.entries(u.changes).map(([c, [a, b]], i) => `<tr>${i === 0 ? `<td class="mono" rowspan="${Object.keys(u.changes).length}">${esc(u.key)}</td>` : ""}<td class="mono">${esc(c)}</td><td class="mono">${fmtV(a)}</td><td class="mono">${fmtV(b)}</td></tr>`).join("")).join("")}</tbody></table></div>` : "";
+      const del = d.deleted.length ? `<div class="tr-lbl">${d.deleted.length} row${d.deleted.length === 1 ? "" : "s"} removed</div>${rowsTable(d.deleted)}` : "";
+      return `<div class="card"><div class="card-head"><h2 class="mono" style="font-size:15px">${esc(t)}</h2><span class="small muted">${num(d.rowsBefore)} rows before → ${num(d.rowsAfter)} after</span></div><div class="card-body">${ins}${upd}${del}</div></div>`;
+    }).join("")}</div>`}</section>`;
+
+  // 5 · cost and time
+  const costTbl = `<section id="tr-cost"><h2 class="tr-h">${icon("receipt", 18)}5 · Cost and time per AI step</h2><div class="card"><div class="table-wrap"><table class="tbl" data-testid="trace-cost"><thead><tr><th class="num">Step</th><th>What it decided</th><th class="num">Model time</th><th class="num">Input tokens</th><th class="num">of which cached</th><th class="num">Output tokens</th><th class="num">Cost</th></tr></thead><tbody>
     ${calls.map(cl => `<tr><td class="num"><a href="#turn-${cl.rec.turn}" data-jump>${cl.rec.turn}</a></td><td>${esc(cl.rec.step)}</td><td class="num">${secs(cl.t.latencyMs || cl.rec.ms)}</td><td class="num">${num((cl.t.usage || {}).input)}</td><td class="num">${num((cl.t.usage || {}).cached)}</td><td class="num">${num((cl.t.usage || {}).output)}</td><td class="num">${usd(cl.cost)}</td></tr>`).join("")}
     <tr style="font-weight:650"><td></td><td>Total for this case</td><td class="num">${secs(g.llmMs)}</td><td class="num">${num(totIn)}</td><td class="num">${num(totCached)}</td><td class="num">${num(totOut)}</td><td class="num">${usd(totalCost)}</td></tr>
   </tbody></table></div><div class="card-body small muted">${costKnown ? "Cost of each call as computed at run time from the tokens the provider reported." : `This trace was recorded before per-call costs were stored, so each call is priced from its tokens at list price; the case total is the one recorded at run time.`} Gemini bills input served from its prompt cache at a tenth of the input price. Case time ${secs(g.wallMs)} = model ${secs(g.llmMs)} + Playwright, page loads and checks ${secs(browserMs)}.</div></div></section>`;
 
-  view.innerHTML = head + back + summary + context + timeline + verdict + costTbl;
+  view.innerHTML = head + back + summary + context + timeline + dbSection + verdict + costTbl;
   wire(view);
 }
 
 function wire(view) {
-  $$("[data-zoom]", view).forEach(f => f.onclick = () => modal("Screenshot", `<img src="${f.dataset.zoom}" style="display:block;max-width:100%;height:auto">`));
+  $$("[data-zoom]", view).forEach(f => f.onclick = () => modal(f.dataset.zoomTitle || "Screenshot", `<img src="${f.dataset.zoom}" style="display:block;max-width:100%;height:auto">`));
+  const ex = $("#tr-expand", view); if (ex) ex.onclick = () => { const open = ex.dataset.open !== "1"; $$("#tr-steps details", view).forEach(d => d.open = open); ex.dataset.open = open ? "1" : "0"; ex.textContent = open ? "Collapse all details" : "Expand all details"; };
   $$("[data-jump]", view).forEach(l => l.onclick = e => { e.preventDefault(); const t = document.getElementById(l.getAttribute("href").slice(1)); if (t) { t.scrollIntoView({ behavior: "smooth", block: "start" }); t.classList.add("tr-flash"); setTimeout(() => t.classList.remove("tr-flash"), 1200); } });
   const pr = $("#tr-print", view); if (pr) pr.onclick = () => { $$("details", view).forEach(d => d.open = true); window.print(); };
 }

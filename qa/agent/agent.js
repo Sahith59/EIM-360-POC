@@ -171,6 +171,29 @@ function integrityCheck(typed, sources) {
   return issues;
 }
 
+// database rows the case inserted or changed, as text sources for the integrity check
+function dbStrings(changes) {
+  const out = [];
+  for (const [t, d] of Object.entries(changes || {})) {
+    d.inserted.forEach(r => Object.entries(r).forEach(([c, v]) => typeof v === "string" && out.push({ where: `database ${t}.${c}`, text: v })));
+    d.updated.forEach(u => Object.entries(u.changes).forEach(([c, [, v]]) => typeof v === "string" && out.push({ where: `database ${t}.${c}`, text: v })));
+  }
+  return out;
+}
+// for every value the AI typed: was it sent to the backend unchanged, stored unchanged, displayed unchanged?
+function deepStrings(v, out = []) { if (typeof v === "string") out.push(v); else if (v && typeof v === "object") Object.values(v).forEach(x => deepStrings(x, out)); return out; }
+function buildRoundTrip(typed, apiCalls, changes, pageText) {
+  const look = (t, texts) => {
+    const st = squash(t), lt = letters(t);
+    if (texts.some(x => squash(x).includes(st))) return { status: "exact" };
+    for (const x of texts) { const sx = squash(x); if (lt.length >= 6 && letters(sx).includes(lt)) { const f = integrityCheck([t], [{ where: "", text: sx }]); return { status: "changed", found: f.length ? f[0].found : sx.slice(0, 200) }; } }
+    return { status: "absent" };
+  };
+  const sentTexts = apiCalls.filter(a => a.method !== "GET" && a.sent).flatMap(a => { try { return deepStrings(JSON.parse(a.sent)); } catch { return [a.sent]; } });
+  const dbTexts = dbStrings(changes).map(x => x.text);
+  return [...new Set(typed.map(squash))].filter(t => t.length >= 3).map(t => ({ typed: t, sent: look(t, sentTexts), stored: look(t, dbTexts), displayed: look(t, [pageText]) }));
+}
+
 // ---------------------------------------------------------------- main loop
 async function runCase({ page, app, step, testInfo, caseDef }) {
   const cfg = llm.config();
@@ -184,7 +207,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
   const dbFile = process.env.AGENT_DB_FILE || path.join(os.tmpdir(), `eim360-${port}.sqlite`);
 
   // capture what a tester would see in passing: toasts and API responses
-  const toasts = [], api = [], inflight = new Set();
+  const toasts = [], api = [], apiLog = [], inflight = new Set();
   await page.addInitScript(() => {
     window.__aiToasts = [];
     new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
@@ -201,7 +224,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     const u = new URL(res.url());
     if (!u.pathname.startsWith("/api/") || u.pathname.startsWith("/api/qa") || u.pathname.startsWith("/api/test")) return;
     const e = { method: r.method(), path: u.pathname + u.search, status: res.status() };
-    if (r.method() !== "GET" || res.status() >= 400) { try { e.body = clip(await res.text(), 300); } catch {} }
+    const detail = /^\/api\/(incidents\/[^/]+$|kb\/)/.test(u.pathname);
+    if (r.method() !== "GET" || res.status() >= 400 || detail) { try { const txt = await res.text(); e.body = clip(txt, 300); e.bodyFull = clip(txt, 4000); } catch {} }
     if (r.method() !== "GET") { try { e.sent = clip(r.postData(), 1500); } catch {} }
     api.push(e);
   });
@@ -211,6 +235,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
   const role = /^(SWAT|SME|Manager|Admin)$/.test(caseDef.role || "") ? caseDef.role : "SWAT";
   await step(`AI agent starts: open EIM 360 as ${role}`, async () => { await app.open("#/incidents", role); await settle(); });
 
+  const TRACK = ["incidents", "resolution_execution", "incident_task_event", "swat_kb"];
+  const dbBefore = dbtool.snapshot(dbFile, TRACK);
   const candidates = (await app.api("/api/test/candidates")).json || [];
   const testData = candidates.map(c => `${c.number}: status ${c.status}, interface ${c.interfaceCode}, ${c.hasPrediction ? `AI prediction (category ${c.category})` : "NO AI prediction"}, ${c.hasRec ? "KB recipe exists for interface+category" : "NO KB recipe for interface+category"}${c.workedBy ? `, worked by ${c.workedBy}` : ""}`).join("\n");
   let schemaTxt = "";
@@ -225,7 +251,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     const obs = await snapshot(page);
     const newToasts = await page.evaluate(() => { const t = window.__aiToasts || []; window.__aiToasts = []; return t; }).catch(() => []);
     toasts.push(...newToasts);
-    const newApi = api.splice(0);
+    const newApi = api.splice(0); apiLog.push(...newApi);
     const turnStartMs = Date.now() - t0;
     const shot = await page.screenshot({ type: "jpeg", quality: 60 }).catch(() => null);
     let shotFile = null;
@@ -262,11 +288,11 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     pendingQueryResults = [];
 
     let r, lastErr;
-    let attemptsUsed = 0;
+    let attemptsUsed = 0; const attemptErrors = [];
     for (let attempt = 1; attempt <= 3 && !r; attempt++) {
       attemptsUsed = attempt;
       try { r = await llm.complete({ system: SYSTEM, prompt: attempt === 1 ? prompt : prompt + `\n\nYour previous reply could not be used (${clip(lastErr.message, 120)}). Reply again with ONE valid JSON object; inside JSON strings write a backslash as \\\\ and a double quote as \\".`, images: shot ? [{ mime: "image/jpeg", base64: shot.toString("base64") }] : [], maxTokens: 3000 }); }
-      catch (err) { lastErr = err; if (err.status && err.status < 500 && err.status !== 429) break; }
+      catch (err) { lastErr = err; attemptErrors.push(`attempt ${attempt}: ${clip(err.message, 300)}`); if (err.status && err.status < 500 && err.status !== 429) break; }
     }
     if (!r) { final = { verdict: "inconclusive", error: true, summary: `The AI agent stopped: the model call failed 3 times (${clip(lastErr && lastErr.message, 200)}).`, confidence: 0 }; break; }
     calls++; usage.input += r.usage.input; usage.output += r.usage.output; usage.cached += r.usage.cached || 0; llmMs += r.latencyMs; if (r.costUsd == null) costKnown = false; else cost += r.costUsd;
@@ -274,7 +300,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     const acts = (Array.isArray(j.actions) ? j.actions : j.type ? [j] : []).slice(0, MAX_ACTIONS);
     const rec = { turn, thought: clip(j.thought, 600), step: clip(j.step || "Continue the test", 140), actions: [], ms: r.latencyMs, tokens: r.usage.input + r.usage.output,
       screenshotSha256: shot ? crypto.createHash("sha256").update(shot).digest("hex") : null };
-    audit.push({ turn, startedAtMs: turnStartMs, prompt, response: r.text, parsed: j, usage: r.usage, latencyMs: r.latencyMs, costUsd: r.costUsd, attempts: attemptsUsed,
+    audit.push({ turn, startedAtMs: turnStartMs, prompt, response: r.text, parsed: j, usage: r.usage, latencyMs: r.latencyMs, costUsd: r.costUsd, attempts: attemptsUsed, attemptErrors, screenshotSha256: shot ? crypto.createHash("sha256").update(shot).digest("hex") : null,
       page: { url: obs.url, heading: obs.title, role: obs.role, controls: obs.elements.length, fieldErrors: obs.fieldErrors }, screenshot: shotFile,
       messages: newToasts, apiCalls: newApi, sqlResults: [] });
 
@@ -282,6 +308,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     if (fin && String(fin.verdict).toLowerCase() === "pass" && !challenged) {
       // a fresh look at the final page, then the independent check
       try { const o2 = await snapshot(page); seen.push({ where: `page ${o2.url}`, text: o2.text }); } catch {}
+      dbStrings(dbtool.diff(dbBefore, dbtool.snapshot(dbFile, TRACK))).forEach(x => seen.push(x));
       const issues = integrityCheck(typedValues, seen);
       integrity = { checked: typedValues.length, issues };
       if (issues.length) {
@@ -344,6 +371,10 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
   }
 
   if (!final) final = { verdict: "inconclusive", summary: `The AI agent used all ${MAX_TURNS} turns without reaching a verdict.`, confidence: 0 };
+  // harness evidence, independent of the AI: what changed in the database, and each typed value's round trip
+  const dbChanges = dbtool.diff(dbBefore, dbtool.snapshot(dbFile, TRACK));
+  let finalText = ""; try { finalText = (await snapshot(page)).text; } catch {}
+  const roundTrip = buildRoundTrip(typedValues, apiLog, dbChanges, finalText);
   const verdict = ["pass", "fail", "inconclusive"].includes(String(final.verdict).toLowerCase()) ? String(final.verdict).toLowerCase() : "inconclusive";
   const arr = x => Array.isArray(x) ? x.map(String).filter(Boolean) : x ? [String(x)] : [];
   const result = {
@@ -356,7 +387,8 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
     classification: final.classification || null, rootCause: final.rootCause || "", component: final.component || "", narrative: final.narrative || "",
     nextSteps: arr(final.nextSteps), defectTitle: final.defectTitle || "", severity: final.severity || "", dbFindings: final.dbFindings || "", reproSteps: arr(final.reproSteps),
     harnessError: !!final.error,
-    integrityCheck: integrity || { checked: typedValues.length, issues: integrityCheck(typedValues, seen) },
+    integrityCheck: integrity || { checked: typedValues.length, issues: integrityCheck(typedValues, seen.concat(dbStrings(dbChanges))) },
+    roundTrip,
     revisedAfterCheck: challenged,
     turns: turnsLog.length, calls, actions: actionsRun, queries, timeline: turnsLog,
     usage, costUsd: costKnown ? Number(cost.toFixed(5)) : null, llmMs, wallMs: Date.now() - t0,
@@ -365,6 +397,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
   try {
     const dir = path.join(ROOT, "qa", "runs", runId, "agent"); fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${caseDef.caseId}.json`), JSON.stringify({ traceVersion: 2, caseId: caseDef.caseId, at: new Date().toISOString(), provider: cfg.provider, model: cfg.model, system: SYSTEM, database: { access: "read-only", file: path.basename(dbFile) },
+      dbChanges, roundTrip,
       context: { testCase: caseDef, requiredIncident: process.env.AGENT_INCIDENT || null, appGuide: GUIDE, testData: candidates, schema: schemaTxt, maxTurns: MAX_TURNS, workers: Number(process.env.AGENT_WORKERS || 4) }, result: { ...result, timeline: undefined }, turns: audit.map((a, k) => ({ ...a, executed: (turnsLog[k] || {}).actions })) }, null, 2));
   } catch { /* audit is best-effort */ }
   await testInfo.attach("ai-agent", { body: JSON.stringify(result), contentType: "application/json" });

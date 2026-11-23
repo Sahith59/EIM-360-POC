@@ -1106,7 +1106,7 @@
   "priority": "High",
   "preconditions": "",
   "steps": [
-   "Enter step containing backslash ().",
+   "Enter step containing backslash (\\).",
    "Save incident."
   ],
   "expected": "Save succeeds and value displays correctly.",
