@@ -228,6 +228,7 @@ async function runCase({ page, app, step, testInfo, caseDef }) {
       ``,
       `TEST DATA (open incidents after the reset):\n${testData}`,
       ``,
+      ...(process.env.AGENT_INCIDENT ? [`REQUIRED TEST DATA: use incident ${process.env.AGENT_INCIDENT} for this case (a tester ran the same case on it by hand, so the results are compared).`, ``] : []),
       `TEST CASE ${caseDef.caseId}${caseDef.clientRef ? ` (client ref ${caseDef.clientRef}, ${caseDef.suite})` : ""}: ${caseDef.title}`,
       `Role: ${caseDef.role || "SWAT"}. Priority: ${caseDef.priority || "-"}.${caseDef.preconditions ? ` Preconditions: ${caseDef.preconditions}` : ""}`,
       `Manual steps:\n${(caseDef.steps || []).map((s, k) => `  ${k + 1}. ${s}`).join("\n")}`,
