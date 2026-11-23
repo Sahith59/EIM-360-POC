@@ -126,7 +126,7 @@ const writeJson = (f, v) => fs.writeFileSync(f, JSON.stringify(v, null, 2));
 function runsIndex() {
   if (!fs.existsSync(RUNS)) return [];
   return fs.readdirSync(RUNS).filter(d => fs.existsSync(path.join(RUNS, d, "run.json")))
-    .map(d => { const r = loadRun(d); return r && { id: r.id, startedAt: r.startedAt, build: r.build, totals: r.totals, durationMs: r.durationMs, workers: r.workers, browser: r.browser, complete: r.tests.length >= catalogSize(), envFailures: r.tests.filter(t => t.analysis && t.analysis.classification === "Environment / test data").length }; })
+    .map(d => { const r = loadRun(d); return r && { id: r.id, startedAt: r.startedAt, build: r.build, totals: r.totals, durationMs: r.durationMs, workers: r.workers, browser: r.browser, complete: r.tests.length >= catalogSize(), envFailures: r.tests.filter(t => t.analysis && t.analysis.classification === "Environment / test data").length, agent: !!(r.ai && r.ai.agent), aiCostUsd: r.ai && r.ai.agent ? r.ai.agent.costUsd : null }; })
     .filter(Boolean).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 const catalogSize = () => readJson(path.join(ROOT, "tests", "catalog.json"), []).length;

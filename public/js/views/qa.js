@@ -203,7 +203,7 @@ export async function timing(view) {
         <button class="btn primary" id="start">${icon("play", 15)}Start</button><button class="btn" id="pause" disabled>Pause</button><button class="btn" id="reset" disabled>${icon("rotate-ccw", 15)}Reset</button></div>
       <div class="row"><label class="small" for="result">Result</label><select class="input" id="result" style="width:130px"><option>Pass</option><option>Fail</option><option>Blocked</option></select><span class="spacer"></span><button class="btn primary" id="save" disabled data-testid="save-timing">Save timing</button></div>
       <hr class="sep"><div class="small muted">Steps to execute</div><ol id="steps" style="margin:6px 0 0;padding-left:18px"></ol><div class="small muted" style="margin-top:8px">Expected</div><p id="expected" style="margin:2px 0 0"></p>
-      <div class="callout" style="margin-top:14px">Open the app in a second tab, press <b>Start</b>, perform the steps exactly as written, confirm the expected result, then press <b>Pause</b> and <b>Save timing</b>.</div>
+      <div class="callout" style="margin-top:14px">Open the app in a second tab, press <b>Start</b>, perform the steps exactly as written, confirm the expected result, then press <b>Pause</b> and <b>Save timing</b>. Before each case, <button class="btn sm" id="reset-data" data-testid="reset-data">${icon("rotate-ccw", 13)}Reset demo data</button> puts every incident back to its starting state, the same reset the AI gets before each case.</div>
     </div></div>
     <div class="card"><div class="card-head"><h2>Recorded timings</h2><span class="small muted" data-testid="timing-count">${timings.length} recorded</span></div>
       <div class="table-wrap"><table class="tbl"><thead><tr><th>Case</th><th>Tester</th><th class="num">Time</th><th>Result</th><th></th></tr></thead><tbody>
@@ -218,6 +218,10 @@ export async function timing(view) {
   $("#case").onchange = e => { sel = e.target.value; showCase(); };
   $("#start").onclick = () => { start = Date.now(); clearInterval(TICK); TICK = setInterval(draw, 250); lock(true); $("#start").disabled = true; $("#pause").disabled = false; $("#reset").disabled = false; $("#save").disabled = true; };
   $("#pause").onclick = () => { acc = secs(); start = null; clearInterval(TICK); draw(); $("#start").disabled = false; $("#start").lastChild.textContent = "Resume"; $("#pause").disabled = true; $("#save").disabled = !canEdit || acc < 1; };
+  $("#reset-data").onclick = async () => {
+    if (!confirm("Put all incidents, KB entries and resolution data back to the starting state?")) return;
+    try { await api("/api/test/reset", { method: "POST" }); toast("Demo data reset to the starting state"); } catch (er) { toast(er.message, "error"); }
+  };
   $("#reset").onclick = () => { acc = 0; start = null; clearInterval(TICK); draw(); lock(false); $("#start").disabled = false; $("#start").lastChild.textContent = "Start"; $("#pause").disabled = true; $("#save").disabled = true; };
   $("#save").onclick = e => busy(e.currentTarget, async () => {
     try { await api("/api/qa/manual-timings", { method: "POST", body: { caseId: sel, tester: $("#tester").value, seconds: Math.round(acc), result: $("#result").value } }); toast(`Saved ${fmt(acc)} for ${sel}`); timing(view); } catch (er) { toast(er.message, "error"); }
@@ -231,50 +235,67 @@ export async function timing(view) {
 }
 
 // ------------------------------------------------------------------ manual vs AI
-export async function compare(view) {
-  const [catalog, timings, rid] = await Promise.all([api("/api/qa/catalog"), api("/api/qa/manual-timings"), latestRunId(true)]);
-  if (!rid) { view.innerHTML = pageHead("Manual vs AI", [["Home", "#/home"], ["Manual vs AI", ""]]) + `<div class="card"><div class="empty">Run the suite first (npm test).</div></div>`; return; }
+// Per case: the tester's stopwatch time (Manual Timing page) and its cost, next to the AI-driven run's measured time,
+// Gemini cost and verdict. Manual cases that were not timed fall back to a clearly labelled planning estimate.
+const RATE_KEY = "eim.qa.rate";
+export async function compare(view, q) {
+  const [catalog, timings, list] = await Promise.all([api("/api/qa/catalog"), api("/api/qa/manual-timings"), api("/api/qa/runs")]);
+  const head = sub => pageHead("Manual vs AI", [["Home", "#/home"], ["Quality Engineering", "#/qa/runs"], ["Manual vs AI", ""]], sub);
+  if (!list.length) { view.innerHTML = head("") + `<div class="card"><div class="empty">No runs yet. Run <span class="mono">npm run test:agent</span> first.</div></div>`; return; }
+  const want = new URLSearchParams(location.hash.split("?")[1] || "").get("run");
+  const rid = (list.find(r => r.id === want) || list.find(r => r.agent) || list[0]).id;
   const run = await api("/api/qa/runs/" + rid);
-  const avg = {}; timings.filter(t => t.seconds >= 1).forEach(t => (avg[t.caseId] = avg[t.caseId] || []).push(t.seconds));
-  Object.keys(avg).forEach(k => avg[k] = avg[k].reduce((a, b) => a + b, 0) / avg[k].length);
-  const measured = Object.keys(avg).length;
-  const meanManual = measured ? Object.values(avg).reduce((a, b) => a + b, 0) / measured : PLAN_MIN * 60;
-  const basis = measured ? `measured average of ${measured} timed case${measured > 1 ? "s" : ""}` : `planning estimate of ${PLAN_MIN} min per case (no manual timings recorded yet)`;
-  const N = catalog.length;
-  const manualSuiteSec = meanManual * N;
-  const aiWallSec = run.durationMs / 1000;
-  const speed = manualSuiteSec / aiWallSec;
-  const proj = { cases: 300, runs: 22, hours: 140 };
-  const perCaseAi = aiWallSec / run.tests.length;
-  const steps = run.tests.reduce((a, x) => a + x.steps.length, 0), shots = run.tests.reduce((a, x) => a + x.steps.filter(s => s.screenshot).length, 0);
-  const execSec = run.tests.reduce((a, x) => a + x.durationMs, 0) / 1000;
-  view.innerHTML = pageHead("Manual vs AI", [["Home", "#/home"], ["Quality Engineering", "#/qa/runs"], ["Manual vs AI", ""]], `Run ${run.id} · manual basis: ${basis}`) + `
-  ${measured ? "" : `<div class="callout" style="margin-bottom:16px" data-testid="estimate-banner">${icon("info", 15)} No manual timings have been recorded yet, so the manual side uses a <b>planning estimate</b> of ${PLAN_MIN} minutes per case (navigate, switch role where needed, perform 2–4 steps, check the result, capture a screenshot and log the outcome). Record real timings on the <a href="#/qa/timing">Manual Timing</a> page and this page updates with measured values.</div>`}
-  <div class="grid g3" style="margin-bottom:16px">
-    <div class="card kpi"><div class="label">${icon("user", 15)}Manual tester · ${N} cases</div><div class="value" data-testid="manual-total">${fmtMin(manualSuiteSec)}</div><div class="foot">${measured ? "measured" : "planning estimate"} · ${fmtMin(meanManual)} per case</div></div>
-    <div class="card kpi"><div class="label">${icon("bot", 15)}AI agent · ${run.tests.length} cases</div><div class="value" data-testid="ai-total">${fmtDur(run.durationMs)}</div><div class="foot">measured, ${run.workers} parallel workers · ${fmtDur(execSec * 1000)} back to back</div></div>
-    <div class="card kpi"><div class="label">${icon("timer", 15)}Time saved per regression run</div><div class="value">${fmtMin(manualSuiteSec - aiWallSec)}</div><div class="foot">${measured ? "measured manual vs measured AI" : "estimated manual vs measured AI"} · excludes human review of failures</div></div>
-  </div>
-  <div class="grid g2" style="align-items:start">
-    <div class="card"><div class="card-head"><h2>Projection to the full EIM 360 inventory</h2></div><div class="card-body">
-      <div class="grid g2" style="margin-bottom:12px">
-        <div class="field"><label for="p-cases">Test cases</label><input class="input" type="number" id="p-cases" value="${proj.cases}" min="1"></div>
-        <div class="field"><label for="p-hours">Tester hours / month</label><input class="input" type="number" id="p-hours" value="${proj.hours}" min="1"></div></div>
-      <table class="tbl"><tbody id="proj"></tbody></table>
-      <p class="small muted" style="margin-bottom:0">Defaults: ~300 cases from the walkthrough, 140 productive hours per tester per month; weekly = 4 runs, nightly = 22 working days. AI time scales this run's measured per-test time on ${run.workers} workers; the mock answers faster than the real EIM 360 will, so expect real runs to be slower. Building and maintaining the suite still needs engineering time, which is not shown here.</p></div></div>
-    <div class="card"><div class="card-head"><h2>Run coverage</h2></div><table class="tbl"><tbody>
-      ${[["Test cases executed", `${run.tests.length} (${run.totals.review} AI-written cases still in review)`], ["Steps executed in Chrome", steps], ["Screenshots captured", shots], ["Passed", run.totals.passed], ["Failed and triaged", run.totals.failed], ["Draft defect reports", run.tests.filter(t => t.analysis && t.analysis.defect).length], ["Locator repair suggestions", run.tests.filter(t => t.analysis && t.analysis.suggestedFix && t.analysis.suggestedFix.type === "test").length]]
-        .map(([k, v]) => `<tr><td>${k}</td><td class="num"><b>${v}</b></td></tr>`).join("")}</tbody></table></div>
-  </div>
-  <div class="card" style="margin-top:16px"><div class="card-head"><h2>Per test case</h2><span class="small muted">Manual column: ${measured ? "measured where timed, otherwise the " : ""}${PLAN_MIN}-minute planning estimate${measured ? "" : " for every case"}</span></div><div class="table-wrap"><table class="tbl" data-testid="compare-table"><thead><tr><th>Case</th><th>Title</th><th class="num">Manual</th><th class="num">AI agent</th><th>Result</th></tr></thead><tbody>
-  ${catalog.map(c => { const t = run.tests.find(k => k.caseId === c.caseId); const m = avg[c.caseId]; return `<tr><td class="mono">${c.caseId}</td><td>${esc(c.title)}</td><td class="num">${m ? `<b>${fmtMin(m)}</b>` : `<span class="muted">${PLAN_MIN} min</span>`}</td><td class="num">${t ? fmtDur(t.durationMs) : "—"}</td><td>${t ? pill(t.status) : "—"}</td></tr>`; }).join("")}
-  </tbody></table></div></div>`;
-  const drawProj = () => {
-    const cases = Math.max(1, Math.round(+$("#p-cases").value) || 1), hours = Math.max(1, Math.round(+$("#p-hours").value) || 1);
-    const col = runs => { const manH = meanManual * cases * runs / 3600, aiH = perCaseAi * cases * runs / 3600; return [`${Math.round(manH).toLocaleString()} h`, (manH / hours).toFixed(1), aiH < 1 ? `${Math.round(aiH * 60)} min` : `${aiH.toFixed(1)} h`]; };
-    const w = col(4), n = col(22);
-    $("#proj").innerHTML = `<tr><th></th><th class="num">Weekly</th><th class="num">Nightly</th></tr>` + [["Manual effort per month", w[0], n[0]], ["Testers needed (FTE)", w[1], n[1]], [`AI wall-clock per month (${run.workers} workers)`, w[2], n[2]]].map(([k, a, b]) => `<tr><td>${k}</td><td class="num"><b>${a}</b></td><td class="num"><b>${b}</b></td></tr>`).join("") +
-      `<tr><td>One full regression · manual</td><td class="num" colspan="2"><b>${fmtMin(meanManual * cases)}</b></td></tr><tr><td>One full regression · AI agent</td><td class="num" colspan="2"><b>${fmtDur(perCaseAi * cases * 1000)}</b></td></tr>`;
+  let rate = 25; try { rate = Number(localStorage.getItem(RATE_KEY)) || 25; } catch {}
+  const byCase = {}; timings.filter(t => t.seconds >= 1).forEach(t => (byCase[t.caseId] = byCase[t.caseId] || []).push(t));
+  const tests = run.tests.slice().sort((a, b) => a.caseId.localeCompare(b.caseId, undefined, { numeric: true }));
+  const rows = tests.map(t => {
+    const ts = byCase[t.caseId] || [];
+    const man = ts.length ? ts.reduce((a, x) => a + x.seconds, 0) / ts.length : null;
+    const manRes = ts.length ? ts[ts.length - 1].result : null;
+    const g = t.agent;
+    const aiS = g ? g.wallMs / 1000 : t.durationMs / 1000;
+    const aiVerdict = g ? g.verdict : t.status === "passed" ? "pass" : t.status === "failed" ? "fail" : "inconclusive";
+    const agree = manRes ? ((manRes === "Pass") === (aiVerdict === "pass")) : null;
+    return { t, g, man, manRes, manN: ts.length, aiS, aiCost: g ? g.costUsd : null, aiVerdict, agree, c: catalog.find(c => c.caseId === t.caseId) || {} };
+  });
+  const timed = rows.filter(r => r.man != null);
+  const sum = (xs, f) => xs.reduce((a, x) => a + (f(x) || 0), 0);
+  const manualAll = sum(rows, r => r.man != null ? r.man : PLAN_MIN * 60);
+  const G = run.ai && run.ai.agent;
+  const aiCostAll = G ? G.costUsd : null;
+  const reviewMin = 30; // budgeted tester review of the AI's verdicts per 30-case run (business case)
+  const pick = (v) => rows.find(r => r.aiVerdict === v && r.man != null) || rows.find(r => r.aiVerdict === v);
+  const ex = [pick("pass"), pick("fail")].filter(Boolean);
+  const usd2 = v => v == null ? "n/a" : "$" + v.toFixed(v < 1 ? 3 : 2);
+  const card = r => {
+    const manCost = r.man != null ? r.man / 3600 * rate : PLAN_MIN / 60 * rate;
+    return `<div class="card" data-testid="compare-example"><div class="card-head"><h2>${icon(r.aiVerdict === "pass" ? "check-circle-2" : "x-circle", 17)}${r.aiVerdict === "pass" ? "Passing" : "Failing"} case · <a class="mono" href="#/qa/runs/${run.id}/${r.t.idx}">${r.t.caseId}</a></h2><span class="small muted">${esc(r.t.title)}</span></div>
+      <table class="tbl"><thead><tr><th></th><th class="num">Manual tester</th><th class="num">AI + Playwright</th></tr></thead><tbody>
+        <tr><td>Time for this case</td><td class="num"><b>${r.man != null ? fmtDur(r.man * 1000) : `${PLAN_MIN} min`}</b>${r.man != null ? `<div class="small muted">stopwatch, ${r.manN} timing${r.manN > 1 ? "s" : ""}</div>` : `<div class="small muted">estimate, not yet timed</div>`}</td><td class="num"><b>${fmtDur(r.aiS * 1000)}</b><div class="small muted">measured, start to verdict</div></td></tr>
+        <tr><td>Cost for this case</td><td class="num"><b>$${manCost.toFixed(2)}</b><div class="small muted">at $${rate}/h</div></td><td class="num"><b>${usd2(r.aiCost)}</b><div class="small muted">Gemini tokens for this case</div></td></tr>
+        <tr><td>Result</td><td class="num">${r.manRes ? esc(r.manRes) : "—"}</td><td class="num">${pill(r.t.status)}</td></tr>
+        ${r.g ? `<tr><td>Work done</td><td class="num small">tester clicks, types, checks</td><td class="num small">${r.g.calls} AI decisions · ${r.g.actions} browser actions · ${r.g.queries.length} SQL checks</td></tr>` : ""}
+        ${r.g && r.g.resolutionSteps.length ? `<tr><td>Resolution steps entered</td><td class="num small muted">tester's choice</td><td class="small">${r.g.resolutionSteps.map(esc).join("<br>")}</td></tr>` : ""}
+      </tbody></table>
+      ${r.g ? `<div class="card-body small" style="border-top:1px solid var(--line)"><b>AI's finding:</b> ${esc(r.g.summary)}</div>` : ""}</div>`;
   };
-  $$("#p-cases,#p-hours").forEach(i => i.oninput = drawProj); drawProj();
+  view.innerHTML = head(`Run ${run.id} · ${esc(run.build.label || run.build.version)} · ${timed.length} of ${rows.length} cases timed by hand`) + `
+  <div class="card" style="margin-bottom:16px"><div class="card-body row" style="gap:14px;flex-wrap:wrap">
+    <div class="field" style="margin:0;min-width:320px"><label for="cmp-run">Run</label><select class="input" id="cmp-run" data-testid="compare-run">${list.map(r => `<option value="${r.id}" ${r.id === run.id ? "selected" : ""}>${r.id} · ${esc(r.build.version)} · ${r.agent ? "AI-driven" : "scripted"} · ${r.totals.total} cases</option>`).join("")}</select></div>
+    <div class="field" style="margin:0;width:170px"><label for="cmp-rate">Tester rate ($/h)</label><input class="input" type="number" min="1" id="cmp-rate" value="${rate}" data-testid="compare-rate"></div>
+    <span class="spacer"></span><a class="btn" href="#/qa/timing">${icon("timer", 15)}Record a manual timing</a></div></div>
+  ${timed.length ? "" : `<div class="callout" style="margin-bottom:16px" data-testid="estimate-banner">${icon("info", 15)} No case in this run has been timed by hand yet, so the manual side uses a <b>planning estimate</b> of ${PLAN_MIN} min per case. Time a tester on the <a href="#/qa/timing">Manual Timing</a> page (for example one passing and one failing case) and this page shows the measured values.</div>`}
+  <div class="grid g3" style="margin-bottom:16px">
+    <div class="card kpi"><div class="label">${icon("user", 15)}Manual tester · ${rows.length} cases</div><div class="value" data-testid="manual-total">${fmtMin(manualAll)}</div><div class="foot">${timed.length ? `${timed.length} timed by stopwatch, ${rows.length - timed.length} at the ${PLAN_MIN}-min estimate` : "planning estimate"} · <b>$${(manualAll / 3600 * rate).toFixed(2)}</b> at $${rate}/h</div></div>
+    <div class="card kpi"><div class="label">${icon("bot", 15)}AI + Playwright · ${rows.length} cases</div><div class="value" data-testid="ai-total">${fmtDur(run.durationMs)}</div><div class="foot">measured, ${run.workers} browsers in parallel · <b data-testid="ai-cost">${aiCostAll != null ? usd2(aiCostAll) : "no AI cost (scripted run)"}</b>${aiCostAll != null ? " of Gemini for the whole run" : ""}</div></div>
+    <div class="card kpi"><div class="label">${icon("timer", 15)}Including a person reviewing the AI</div><div class="value">${fmtMin(run.durationMs / 1000 + reviewMin * 60)}</div><div class="foot">run + ${reviewMin} min review (budget) · <b>$${((aiCostAll || 0) + reviewMin / 60 * rate).toFixed(2)}</b> vs <b>$${(manualAll / 3600 * rate).toFixed(2)}</b> manual</div></div>
+  </div>
+  <div class="grid g2" style="align-items:start;margin-bottom:16px">${ex.map(card).join("")}</div>
+  <div class="card"><div class="card-head"><h2>Every case</h2><span class="small muted">Manual: stopwatch average where timed (bold), otherwise the ${PLAN_MIN}-min estimate (grey). AI: measured time and Gemini cost for that case.</span></div><div class="table-wrap"><table class="tbl" data-testid="compare-table"><thead><tr><th>Case</th><th>Title</th><th class="num">Manual time</th><th class="num">Manual cost</th><th class="num">AI time</th><th class="num">AI cost</th><th class="num">Faster</th><th>Manual result</th><th>AI result</th><th>Agree?</th></tr></thead><tbody>
+  ${rows.map(r => { const m = r.man != null ? r.man : PLAN_MIN * 60; return `<tr><td class="mono"><a href="#/qa/runs/${run.id}/${r.t.idx}">${r.t.caseId}</a></td><td>${esc(r.t.title)}</td><td class="num">${r.man != null ? `<b>${fmtDur(r.man * 1000)}</b>` : `<span class="muted">${PLAN_MIN} min</span>`}</td><td class="num">${r.man != null ? "" : '<span class="muted">'}$${(m / 3600 * rate).toFixed(2)}${r.man != null ? "" : "</span>"}</td><td class="num">${fmtDur(r.aiS * 1000)}</td><td class="num">${usd2(r.aiCost)}</td><td class="num">${(m / r.aiS).toFixed(0)}×</td><td>${r.manRes ? esc(r.manRes) : '<span class="muted">—</span>'}</td><td>${pill(r.t.status)}</td><td>${r.agree == null ? '<span class="muted">—</span>' : r.agree ? `<span class="pill ok">yes</span>` : `<span class="pill bad">no</span>`}</td></tr>`; }).join("")}
+  <tr style="font-weight:600"><td></td><td>Total</td><td class="num">${fmtMin(manualAll)}</td><td class="num">$${(manualAll / 3600 * rate).toFixed(2)}</td><td class="num">${fmtDur(run.durationMs)}<div class="small muted" style="font-weight:400">parallel</div></td><td class="num">${aiCostAll != null ? usd2(aiCostAll) : "—"}</td><td class="num">${(manualAll / (run.durationMs / 1000)).toFixed(0)}×</td><td></td><td></td><td></td></tr>
+  </tbody></table></div></div>
+  <p class="small muted" style="margin-top:10px">AI cost is what Gemini charged for this run at list prices (with its prompt cache). AI time per case is start to verdict on one browser; the run total is wall-clock with ${run.workers} browsers in parallel. The manual side counts only execution time, not the defect write-up. The review budget is the business-case assumption of ${reviewMin} min per 30-case run.</p>`;
+  $("#cmp-run").onchange = e => { location.hash = "#/qa/compare?run=" + e.target.value; };
+  $("#cmp-rate").onchange = e => { try { localStorage.setItem(RATE_KEY, String(Math.max(1, +e.target.value || 25))); } catch {} compare(view); };
 }
